@@ -5,10 +5,17 @@ import { notFound, useParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { BalanceDisplay } from "@/components/BalanceDisplay";
 import { SupplyWithdrawForm } from "@/components/SupplyWithdrawForm";
+import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { TokenIcon } from "@/components/ui/TokenIcon";
 import { BASESCAN_URL, MUSDC_ADDRESS } from "@/lib/constants";
 import { useBalances, useMarkets } from "@/lib/hooks";
-import { findMarketByMToken, formatApy, formatUsd } from "@/lib/moonwell";
+import {
+  assetDisplayName,
+  findMarketByMToken,
+  formatApy,
+  formatUsd,
+} from "@/lib/moonwell";
 import { useWallet } from "@/lib/providers";
 
 export default function MarketDetailPage() {
@@ -27,59 +34,52 @@ export default function MarketDetailPage() {
   }
 
   const market = markets && findMarketByMToken(markets, mTokenAddress);
+  const symbol = market?.asset ?? "USDC";
+
+  const stats = [
+    { label: "Supply APY", value: market && formatApy(market.baseSupplyApy) },
+    {
+      label: "APY incl. rewards",
+      value: market && formatApy(market.totalSupplyApr),
+    },
+    {
+      label: "Total supplied",
+      value: market && formatUsd(market.totalSupplyUsd),
+    },
+  ];
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 space-y-8">
       <Link
         href="/lend"
-        className="inline-flex items-center gap-1 text-sm"
-        style={{ color: "#606060" }}
+        className="inline-flex items-center gap-1 text-sm text-mw-grey-400 hover:text-mw-black transition-colors"
       >
         <ChevronLeft className="h-4 w-4" />
         All markets
       </Link>
 
-      <div>
-        <h1 className="text-2xl font-semibold" style={{ color: "#030303" }}>
-          {market ? `${market.asset} market` : "USDC market"}
-        </h1>
-        <a
-          href={`${BASESCAN_URL}/address/${mTokenAddress}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs font-mono hover:underline"
-          style={{ color: "#606060" }}
-        >
-          {mTokenAddress}
-        </a>
+      <div className="flex items-center gap-3">
+        <TokenIcon symbol={symbol} className="w-11 h-11 text-xs" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="text-3xl font-bold tracking-tight">{symbol}</h1>
+            <Badge color="base">Base</Badge>
+          </div>
+          <p className="text-sm text-mw-grey-400">{assetDisplayName(symbol)}</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        {[
-          { label: "Supply APY", value: market && formatApy(market.baseSupplyApy) },
-          {
-            label: "APY incl. rewards",
-            value: market && formatApy(market.totalSupplyApr),
-          },
-          {
-            label: "Total supplied",
-            value: market && formatUsd(market.totalSupplyUsd),
-          },
-        ].map(({ label, value }) => (
+        {stats.map(({ label, value }) => (
           <div
             key={label}
-            className="bg-white rounded-xl p-4"
-            style={{ border: "1px solid #DADADA" }}
+            className="rounded-2xl border border-mw-grey-100 p-4 space-y-2"
           >
-            <p className="text-[10px] uppercase tracking-wide" style={{ color: "#606060" }}>
-              {label}
-            </p>
+            <p className="text-sm text-mw-grey-400">{label}</p>
             {marketsLoading || !value ? (
-              <Skeleton className="h-6 w-20 mt-1" />
+              <Skeleton className="h-7 w-20" />
             ) : (
-              <p className="text-lg font-semibold mt-1" style={{ color: "#030303" }}>
-                {value}
-              </p>
+              <p className="tabular text-xl">{value}</p>
             )}
           </div>
         ))}
@@ -91,6 +91,15 @@ export default function MarketDetailPage() {
       />
 
       <SupplyWithdrawForm balances={balances} />
+
+      <a
+        href={`${BASESCAN_URL}/address/${mTokenAddress}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block font-mono text-xs text-mw-grey-400 hover:text-mw-blue transition-colors break-all"
+      >
+        {mTokenAddress}
+      </a>
     </div>
   );
 }

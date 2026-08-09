@@ -14,6 +14,10 @@ function truncate(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
+/** Outlined blue action, matching the Connect Wallet button on moonwell.fi. */
+const OUTLINED =
+  "cursor-pointer font-mono text-sm py-1.5 px-4 rounded-lg border border-mw-blue text-mw-blue hover:bg-mw-blue-100 transition-colors";
+
 export default function DynamicButton() {
   const { data: initStatus, error: initError } = useInitStatus();
   const { data: user } = useUser();
@@ -40,8 +44,7 @@ export default function DynamicButton() {
     return (
       <button
         disabled
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium opacity-70"
-        style={{ borderColor: "#DADADA", color: "#606060", background: "#fff" }}
+        className="font-mono text-sm py-1.5 px-4 rounded-lg border border-mw-grey-200 text-mw-grey-400 flex items-center gap-2"
       >
         {initStatus === "failed" ? (
           (initError?.message ?? "Dynamic failed to load")
@@ -60,44 +63,27 @@ export default function DynamicButton() {
       <div className="relative" ref={ref}>
         <button
           onClick={() => setOpen((v) => !v)}
-          className="cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors"
-          style={{
-            borderColor: "#DADADA",
-            color: "#030303",
-            background: "#fff",
-          }}
+          className="cursor-pointer flex items-center gap-2 font-mono text-sm py-1.5 px-3 rounded-lg border border-mw-grey-200 hover:border-mw-blue transition-colors"
         >
-          <span
-            className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white"
-            style={{ background: "#4779FF" }}
-          >
-            {(user.email ?? "0x").slice(0, 2).toUpperCase()}
+          <span className="w-6 h-6 rounded-full bg-mw-blue-200 text-mw-blue-900 flex items-center justify-center text-[10px] font-medium uppercase">
+            {(user.email ?? "0x").slice(0, 2)}
           </span>
           {evmAccount ? truncate(evmAccount.address) : "Setting up…"}
         </button>
 
         {open && (
-          <div
-            className="absolute right-0 mt-1 min-w-[16rem] rounded-xl shadow-lg border z-50 overflow-hidden"
-            style={{ borderColor: "#DADADA", background: "#fff" }}
-          >
-            <div className="px-3 py-2.5 border-b" style={{ borderColor: "#DADADA" }}>
-              <p className="text-[10px] uppercase tracking-wide" style={{ color: "#606060" }}>
-                Signed in as
-              </p>
-              <p className="text-sm font-medium truncate" style={{ color: "#030303" }}>
-                {user.email ?? "—"}
-              </p>
+          <div className="absolute right-0 mt-2 min-w-[16rem] rounded-2xl border border-mw-grey-100 bg-white shadow-lg z-50 overflow-hidden">
+            <div className="px-4 py-3 border-b border-mw-grey-100">
+              <p className="text-xs text-mw-grey-400">Signed in as</p>
+              <p className="text-sm truncate">{user.email ?? "—"}</p>
             </div>
 
             <div className="p-2">
               {evmAccount ? (
-                <div className="flex items-center justify-between rounded-md px-2 py-1.5">
+                <div className="flex items-center justify-between px-2 py-1.5">
                   <div className="min-w-0">
-                    <p className="text-[10px] uppercase tracking-wide" style={{ color: "#606060" }}>
-                      Base wallet
-                    </p>
-                    <p className="font-mono text-xs" style={{ color: "#030303" }}>
+                    <p className="text-xs text-mw-grey-400">Base wallet</p>
+                    <p className="font-mono text-xs">
                       {truncate(evmAccount.address)}
                     </p>
                   </div>
@@ -107,18 +93,17 @@ export default function DynamicButton() {
                       setCopied(true);
                       setTimeout(() => setCopied(false), 2000);
                     }}
-                    className="cursor-pointer p-1 rounded"
-                    style={{ color: "#606060" }}
+                    className="cursor-pointer p-1 rounded text-mw-grey-400 hover:text-mw-black"
                   >
                     {copied ? (
-                      <Check className="h-3.5 w-3.5 text-green-600" />
+                      <Check className="h-3.5 w-3.5 text-mw-green-800" />
                     ) : (
                       <Copy className="h-3.5 w-3.5" />
                     )}
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 px-2 py-2 text-xs" style={{ color: "#606060" }}>
+                <div className="flex items-center gap-2 px-2 py-2 text-xs text-mw-grey-400">
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   Creating your embedded wallet…
                 </div>
@@ -130,8 +115,7 @@ export default function DynamicButton() {
                 setOpen(false);
                 logout();
               }}
-              className="cursor-pointer w-full text-left px-4 py-3 text-sm border-t transition-colors hover:bg-[#F9F9F9]"
-              style={{ borderColor: "#DADADA", color: "#606060" }}
+              className="cursor-pointer w-full text-left px-4 py-3 text-sm border-t border-mw-grey-100 text-mw-grey-400 hover:bg-mw-grey-50 transition-colors"
             >
               Disconnect
             </button>
@@ -143,19 +127,12 @@ export default function DynamicButton() {
 
   return (
     <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="cursor-pointer px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors"
-        style={{ background: "#4779FF" }}
-      >
-        Sign in
+      <button onClick={() => setOpen((v) => !v)} className={OUTLINED}>
+        Connect Wallet
       </button>
 
       {open && (
-        <div
-          className="absolute right-0 mt-1 w-72 rounded-xl shadow-lg border z-50 p-4"
-          style={{ borderColor: "#DADADA", background: "#fff" }}
-        >
+        <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-mw-grey-100 bg-white shadow-lg z-50 p-4">
           <Login onDone={() => setOpen(false)} />
         </div>
       )}

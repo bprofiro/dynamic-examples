@@ -78,6 +78,7 @@ src/
     MarketRow.tsx
     BalanceDisplay.tsx
     SupplyWithdrawForm.tsx
+    ui/                   # Badge, TokenIcon, Skeleton
   lib/
     dynamic.ts            # client + addEvmExtension() + initializeClient()
     providers.tsx         # QueryClientProvider > DynamicProvider > WaasBootstrap
@@ -99,6 +100,11 @@ src/
 - **Supplied balance is derived**, not read: an mToken balance stays constant
   while `exchangeRateStored` grows, so interest only appears once you compute
   `mTokenBalance * exchangeRateStored / 1e18`.
+- **Styling follows moonwell.fi** — the brand palette in `globals.css` mirrors the
+  Moonwell app's Tailwind theme, and figures are monospaced the way they are
+  there. Moonwell's GT-America faces are licensed and can't ship here, so Inter
+  and IBM Plex Mono stand in. Token logos are drawn as monograms rather than
+  vendoring third-party brand marks.
 
 ## Resources
 

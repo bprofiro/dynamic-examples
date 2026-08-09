@@ -1,15 +1,21 @@
 import type { Metadata } from "next";
-import { Roboto } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import Providers from "@/lib/providers";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/footer";
 
 import "./globals.css";
 
-const roboto = Roboto({
+// Stand-ins for Moonwell's licensed GT-America / GT-America-Mono.
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "700"],
-  variable: "--font-roboto",
+  variable: "--font-inter",
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-plex-mono",
 });
 
 export const metadata: Metadata = {
@@ -25,11 +31,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${roboto.variable} font-sans bg-[#F9F9F9] text-[#030303]`}>
+      <body className={`${inter.variable} ${plexMono.variable} font-sans`}>
         <Providers>
           <div className="min-h-screen flex flex-col">
             <Navigation />
-            <main className="flex-1 pt-0 pb-16">{children}</main>
+            <main className="flex-1 pb-20">{children}</main>
             <Footer />
           </div>
         </Providers>

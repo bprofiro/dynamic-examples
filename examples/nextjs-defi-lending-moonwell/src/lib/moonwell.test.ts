@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assetDisplayName,
   filterActiveMarkets,
   findMarketByMToken,
   formatApy,
@@ -193,6 +194,17 @@ describe("formatApy", () => {
 
   it("falls back for non-finite input", () => {
     expect(formatApy(Number.NaN)).toBe("—");
+  });
+});
+
+describe("assetDisplayName", () => {
+  it("expands known symbols", () => {
+    expect(assetDisplayName("USDC")).toBe("USD Coin");
+    expect(assetDisplayName("cbBTC")).toBe("Coinbase Bitcoin");
+  });
+
+  it("falls back to the symbol for unknown assets", () => {
+    expect(assetDisplayName("XYZ")).toBe("XYZ");
   });
 });
 

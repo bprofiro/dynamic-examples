@@ -63,8 +63,8 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
   };
 
   return (
-    <div className="bg-white rounded-xl p-5 space-y-4" style={{ border: "1px solid #DADADA" }}>
-      <div className="flex rounded-lg p-0.5 gap-0.5" style={{ background: "#F0F0F0" }}>
+    <div className="rounded-2xl border border-mw-grey-100 p-4 space-y-4">
+      <div className="flex gap-6 border-b border-mw-grey-100">
         {(["supply", "withdraw"] as const).map((tab) => (
           <button
             key={tab}
@@ -73,55 +73,49 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
               setValue("");
               reset();
             }}
-            className="cursor-pointer flex-1 py-1.5 px-2 text-xs font-medium rounded-md transition-all capitalize"
-            style={
+            className={`cursor-pointer pb-3 -mb-px text-sm capitalize border-b-2 transition-colors ${
               mode === tab
-                ? {
-                    background: "#fff",
-                    color: "#030303",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-                  }
-                : { color: "#606060" }
-            }
+                ? "border-mw-blue text-mw-blue font-bold"
+                : "border-transparent text-mw-grey-400 hover:text-mw-black"
+            }`}
           >
             {tab}
           </button>
         ))}
       </div>
 
-      <div className="space-y-1">
+      <div className="space-y-1.5">
         <div className="flex justify-between items-center">
-          <label className="text-xs font-medium" style={{ color: "#606060" }}>
-            Amount (USDC)
-          </label>
+          <label className="text-sm text-mw-grey-400">Amount</label>
           <button
             type="button"
             onClick={setMax}
             disabled={isBusy}
-            className="cursor-pointer text-xs hover:underline disabled:opacity-40"
-            style={{ color: "#4779FF" }}
+            className="cursor-pointer font-mono text-xs text-mw-blue hover:underline disabled:opacity-40"
           >
-            Max: {Number(formatUnits(maxAmount, USDC_DECIMALS)).toFixed(6)}
+            Max {Number(formatUnits(maxAmount, USDC_DECIMALS)).toFixed(6)}
           </button>
         </div>
-        <input
-          type="number"
-          inputMode="decimal"
-          min="0"
-          step="0.000001"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="0.00"
-          disabled={isBusy}
-          className="w-full text-sm px-3 py-2 rounded-lg outline-none focus:ring-1 focus:ring-[#4779FF]/30"
-          style={{
-            border: `1px solid ${exceedsBalance ? "#EF4444" : "#DADADA"}`,
-            background: "#fff",
-            color: "#030303",
-          }}
-        />
+        <div
+          className={`flex items-center rounded-lg border px-3 ${
+            exceedsBalance ? "border-mw-red-600" : "border-mw-grey-200"
+          }`}
+        >
+          <input
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.000001"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="0.00"
+            disabled={isBusy}
+            className="tabular flex-1 py-2.5 text-sm bg-transparent outline-none"
+          />
+          <span className="font-mono text-sm text-mw-grey-400">USDC</span>
+        </div>
         {exceedsBalance && (
-          <p className="text-xs text-red-500">
+          <p className="text-xs text-mw-red-600">
             {mode === "supply"
               ? "Amount exceeds your wallet balance"
               : "Amount exceeds your supplied balance"}
@@ -130,18 +124,14 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
       </div>
 
       {!loggedIn ? (
-        <p
-          className="text-center text-xs py-2 rounded-lg"
-          style={{ background: "#F9F9F9", border: "1px solid #DADADA", color: "#606060" }}
-        >
+        <p className="text-center font-mono text-sm py-2.5 rounded-lg border border-mw-grey-200 text-mw-grey-400">
           Sign in to {mode}
         </p>
       ) : (
         <button
           onClick={handleSubmit}
           disabled={!canSubmit}
-          className="cursor-pointer w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: mode === "supply" ? "#4779FF" : "#606060" }}
+          className="cursor-pointer w-full flex items-center justify-center gap-2 font-mono text-sm py-2.5 rounded-lg bg-mw-blue-700 hover:bg-mw-blue text-white transition-colors disabled:bg-mw-grey-100 disabled:text-mw-grey-300 disabled:cursor-not-allowed"
         >
           {isBusy && <Loader2 className="h-4 w-4 animate-spin" />}
           {tx.phase === "approving"
@@ -151,7 +141,7 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
                 ? "Supplying…"
                 : "Withdrawing…"
               : needsApproval
-                ? "Approve & supply"
+                ? "Approve & Supply"
                 : mode === "supply"
                   ? "Supply"
                   : "Withdraw"}
@@ -159,13 +149,13 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
       )}
 
       {tx.phase === "error" && (
-        <p className="p-2 rounded-lg text-xs bg-red-50 border border-red-200 text-red-600 break-words">
+        <p className="p-2.5 rounded-lg text-xs bg-mw-red-100 text-mw-red-600 break-words">
           {tx.error}
         </p>
       )}
 
       {tx.phase === "success" && (
-        <p className="p-2 rounded-lg text-xs bg-green-50 border border-green-200 text-green-700">
+        <p className="p-2.5 rounded-lg text-xs bg-mw-green-100 text-mw-green-800">
           Transaction confirmed.{" "}
           {tx.hash && (
             <a

@@ -111,6 +111,37 @@ export function formatApy(apy: number): string {
   return `${apy.toFixed(2)}%`;
 }
 
+/**
+ * Full asset names as shown on moonwell.fi. The markets API returns symbols
+ * only, and the app pairs each symbol with its name in the market list.
+ */
+const ASSET_NAMES: Record<string, string> = {
+  AERO: "Aerodrome",
+  DAI: "Dai",
+  ETH: "Ethereum",
+  EURC: "Euro Coin",
+  LBTC: "Lombard Staked Bitcoin",
+  MAMO: "Mamo",
+  MORPHO: "Morpho",
+  USDC: "USD Coin",
+  USDS: "Sky Dollar",
+  VIRTUAL: "Virtuals Protocol",
+  WELL: "Moonwell",
+  cbBTC: "Coinbase Bitcoin",
+  cbETH: "Coinbase Staked Ethereum",
+  cbXRP: "Coinbase XRP",
+  rETH: "Rocket Pool Staked Ethereum",
+  tBTC: "Threshold Bitcoin",
+  weETH: "EtherFi Restaked Ethereum",
+  wrsETH: "KelpDAO Restaked Ethereum",
+  wstETH: "Lido Staked Ethereum",
+};
+
+/** Falls back to the symbol for any asset listed after this map was written. */
+export function assetDisplayName(symbol: string): string {
+  return ASSET_NAMES[symbol] ?? symbol;
+}
+
 export function formatUsd(value: number): string {
   if (!Number.isFinite(value)) return "—";
   const abs = Math.abs(value);

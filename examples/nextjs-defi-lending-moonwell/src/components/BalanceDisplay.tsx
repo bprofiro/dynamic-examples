@@ -6,7 +6,7 @@ import type { Balances } from "@/lib/hooks";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 function usdc(value: bigint) {
-  return `${Number(formatUnits(value, USDC_DECIMALS)).toFixed(6)} USDC`;
+  return Number(formatUnits(value, USDC_DECIMALS)).toFixed(6);
 }
 
 /**
@@ -23,34 +23,39 @@ export function BalanceDisplay({
 }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div className="bg-white rounded-xl p-5" style={{ border: "1px solid #DADADA" }}>
-        <p className="text-sm font-medium" style={{ color: "#606060" }}>
-          Wallet balance
-        </p>
+      <div className="rounded-2xl border border-mw-grey-100 p-4 space-y-2">
+        <p className="text-sm text-mw-grey-400">Wallet balance</p>
         {isLoading ? (
-          <Skeleton className="h-8 w-32 mt-2" />
+          <Skeleton className="h-7 w-32" />
         ) : (
-          <p className="text-2xl font-semibold mt-2" style={{ color: "#030303" }}>
+          <p className="tabular text-2xl">
             {balances ? usdc(balances.walletUsdc) : "—"}
+            <span className="text-mw-grey-400 text-base ml-1.5">USDC</span>
           </p>
         )}
       </div>
 
-      <div className="bg-white rounded-xl p-5" style={{ border: "1px solid #DADADA" }}>
-        <p className="text-sm font-medium" style={{ color: "#606060" }}>
-          Supplied
-        </p>
+      <div className="rounded-2xl border border-mw-grey-100 p-4 space-y-2">
+        <p className="text-sm text-mw-grey-400">Supplied</p>
         {isLoading ? (
-          <Skeleton className="h-8 w-32 mt-2" />
+          <Skeleton className="h-7 w-32" />
         ) : (
           <>
-            <p className="text-2xl font-semibold mt-2" style={{ color: "#030303" }}>
+            <p className="tabular text-2xl">
               {balances ? usdc(balances.suppliedUsdc) : "—"}
+              <span className="text-mw-grey-400 text-base ml-1.5">USDC</span>
             </p>
-            <p className="text-xs mt-1" style={{ color: "#606060" }}>
-              {balances
-                ? `${formatUnits(balances.mTokenBalance, MTOKEN_DECIMALS)} mUSDC`
-                : "Sign in to see your position"}
+            <p className="text-xs text-mw-grey-400">
+              {balances ? (
+                <>
+                  <span className="tabular">
+                    {formatUnits(balances.mTokenBalance, MTOKEN_DECIMALS)}
+                  </span>{" "}
+                  mUSDC
+                </>
+              ) : (
+                "Sign in to see your position"
+              )}
             </p>
           </>
         )}

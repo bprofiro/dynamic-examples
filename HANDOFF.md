@@ -110,6 +110,17 @@ would be noise in the upstream PR.
    v4 setup), and the duplicate `next.config.js`.
 8. **Vitest added** as a devDependency of this example only, testing just the pure
    module. Zero runtime footprint; trivially removable if Dynamic objects.
+9. **Styled after moonwell.fi, not the Morpho example.** The plan called for
+   keeping the Morpho look for review consistency; you overrode that after seeing
+   it. The palette in `globals.css` mirrors the Moonwell app's Tailwind theme
+   (`#2474DA` Moonwell Blue, the grey ramp, the Base chip colours), the market
+   list matches the moonwell.fi table layout, and figures are monospaced as they
+   are there. Two substitutions were unavoidable: **GT-America / GT-America-Mono
+   are licensed** (Grilli Type) and cannot be redistributed in a public repo, so
+   Inter and IBM Plex Mono stand in; and **token logos are drawn as monograms**
+   rather than vendoring or hotlinking third-party brand marks. If Dynamic pushes
+   back on the divergence, the styling is confined to `globals.css`,
+   `layout.tsx`, and the component class names — the SDK wiring is untouched.
 
 ## Known gaps
 

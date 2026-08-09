@@ -8,53 +8,45 @@ export default function LendPage() {
   const { data: markets, isLoading, error } = useMarkets();
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold" style={{ color: "#030303" }}>
-          Lend
-        </h1>
-        <p className="text-sm mt-1" style={{ color: "#606060" }}>
-          Supply assets to Moonwell on Base and earn interest. Rates are live
-          from the Moonwell API.
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-8">
+        <h1 className="text-4xl font-bold tracking-tight">Markets</h1>
+        <p className="text-sm text-mw-grey-400">
+          Supply assets to Moonwell on Base and earn interest.
         </p>
       </div>
 
-      <section className="rounded-xl overflow-hidden" style={{ border: "1px solid #DADADA" }}>
-        <div
-          className="hidden sm:grid grid-cols-5 gap-3 px-4 py-2 text-[10px] font-medium uppercase tracking-wide"
-          style={{ background: "#F9F9F9", color: "#606060", borderBottom: "1px solid #DADADA" }}
-        >
-          <span>Market</span>
-          <span>Supply APY</span>
-          <span>APY incl. rewards</span>
-          <span>Total supplied</span>
-          <span className="text-right">Action</span>
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1fr)_minmax(0,1fr)_8.5rem] gap-4 pb-2 border-b border-mw-grey-100 text-sm text-mw-grey-400">
+        <span>Asset</span>
+        <span className="hidden sm:block">Network</span>
+        <span className="text-right sm:text-left">Supply APY</span>
+        <span className="hidden sm:block">Total supplied</span>
+        <span className="hidden sm:block" />
+      </div>
 
-        {isLoading ? (
-          <div className="divide-y" style={{ borderColor: "#DADADA" }}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="px-4 py-3 bg-white">
-                <Skeleton className="h-6 w-full" />
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <div className="p-4 bg-red-50 text-sm text-red-600">
-            Could not load markets: {error.message}
-          </div>
-        ) : (
-          markets?.map((market) => (
-            <MarketRow key={market.mTokenAddress} market={market} />
-          ))
-        )}
-      </section>
+      {isLoading ? (
+        <div>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="py-5 border-b border-mw-grey-100">
+              <Skeleton className="h-9 w-full" />
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="mt-4 p-4 rounded-xl bg-mw-red-100 text-sm text-mw-red-600">
+          Could not load markets: {error.message}
+        </div>
+      ) : (
+        markets?.map((market) => (
+          <MarketRow key={market.mTokenAddress} market={market} />
+        ))
+      )}
 
       {markets && (
-        <p className="text-xs" style={{ color: "#606060" }}>
+        <p className="text-xs text-mw-grey-400 mt-6">
           {markets.length} active markets. Deprecated markets are filtered out —
           including the legacy USDbC market, which reports the same{" "}
-          <code>mUSDC</code> symbol as native USDC.
+          <code className="font-mono">mUSDC</code> symbol as native USDC.
         </p>
       )}
     </div>
