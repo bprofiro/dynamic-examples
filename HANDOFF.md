@@ -1,0 +1,147 @@
+# MOO-717 handoff — Moonwell lending recipe
+
+Autonomous session output for [MOO-717](https://linear.app/moonwell/issue/MOO-717/create-dynamic-wallet-moonwell-lending-recipe-app-and-docs).
+Branch: `feat/nextjs-defi-lending-moonwell`, pushed to `bprofiro/dynamic-examples` only.
+**No PR was opened against `dynamic-labs-oss/examples`** — that's your call.
+
+> Delete this file (and the two `MOO-717-*.md` planning docs, which are untracked)
+> before opening the upstream PR. It lives in its own commit so it can be dropped
+> cleanly.
+
+---
+
+## What was built
+
+`examples/nextjs-defi-lending-moonwell/` — a Next.js 15 App Router example, scaffolded
+from `nextjs-defi-lending-morpho` and rewritten against the current Dynamic JS SDK.
+
+- `/lend` — all non-deprecated Base markets with live APYs from
+  `api.moonwell.fi/v1/markets?chainId=8453`. Only the USDC row links onward.
+- `/lend/[mToken]` — USDC market: wallet balance, supplied balance, and a
+  Supply/Withdraw form.
+- Headless email-OTP sign-in (`useSendEmailOTP` / `useVerifyOTP`) — no social
+  buttons, matching the sandbox environment where only the `dynamic` email
+  provider is enabled.
+- `RECIPE.mdx` — the Mintlify recipe doc, mirroring the Morpho recipe's section
+  order. Every annotated code block is a **verbatim** excerpt of a real file in
+  the example (verified programmatically, see below).
+
+## Verified in this session
+
+| Check | Result |
+|---|---|
+| `pnpm install` | clean |
+| `pnpm typecheck` (`tsc --noEmit`) | clean |
+| `pnpm lint` | no warnings or errors |
+| `pnpm test` (vitest) | **22 passed** — `src/lib/moonwell.ts` |
+| `pnpm build` | clean; 4 routes |
+| `npx depcheck` | no unused runtime deps (devDep hits are config-file false positives) |
+| Grep sweep for `morpho`/`Morpho` | only the intentional cross-link in `RECIPE.mdx` |
+| `.env.local` committed? | no — gitignored; `.env.example` committed instead |
+
+### Facts re-verified against live sources (§1 of the plan)
+
+- **Markets API** — 200, `meta.chain: eip155:8453`, 20 markets, exactly 1
+  deprecated. Field names and the "APY values are already percentages" rule
+  confirmed.
+- **The `mUSDC` collision is real and still present**: native USDC
+  `0xEdc817A28E8B93B03976FBd4a3dDBc9f7D176c22` (`deprecated: false`) and legacy
+  USDbC `0x703843C3379b52F9FF486c9f5892218d2a065cC8` (`deprecated: true`) both
+  report the symbol `mUSDC`. Markets are keyed by `mTokenAddress` throughout.
+- **Contracts on Base**, read through the app's own ABIs:
+  `exchangeRateStored` = `231174377482736` (≈2.31e14, > 1e14 as expected),
+  mUSDC `decimals` = 8, USDC `decimals` = 6, mUSDC `underlying()` = the USDC
+  address. `underlyingFromMTokens(1e8, rate)` = `23117` → 1 mUSDC redeems for
+  ~0.023117 USDC. ABI + addresses are correct.
+
+### Verified in the browser (dev server, real env ID)
+
+- `/lend` rendered **19 active markets** live from the API. **USDbC is absent.**
+  Only the USDC row shows a Supply button; the rest read "View only".
+- `/lend/0xEdc817…6c22` rendered 3.67% supply APY, 3.98% incl. rewards,
+  $15.69M total supplied — matching the API response.
+- The header **"Sign in"** button rendered rather than a stuck "Loading…", which
+  means `useInitStatus()` reached `finished`: the environment ID
+  `f701ab2e-d0db-4195-ae95-8e73991cb6b7` and the `http://localhost:3000` CORS
+  origin are both good.
+- Clicking Sign in opened the email-OTP form. Signed out, balances render `—`
+  and the action button reads "Sign in to supply".
+- Console: clean (only the React DevTools notice).
+
+Screenshots were taken in-session but deliberately **not committed** — binaries
+would be noise in the upstream PR.
+
+## Deviations from the plan, and why
+
+1. **Dynamic SDK pinned to `1.26.0`, not the template's `1.2.1`.** The plan said
+   pin the template versions, but also that the quickstart wins on conflicts. The
+   quickstart's API (`useGetWalletAccounts` returning a react-query result,
+   `useOnEvent`, `useInitStatus`, `useSendEmailOTP`/`useVerifyOTP`) simply does
+   not exist in `react-hooks@0.26.5`, which exposes `useWalletAccounts()`
+   returning a bare array and `useEvent`. I confirmed this by unpacking both
+   packages and reading their `.d.ts` files, then pinned the latest release whose
+   surface matches the quickstart. Framework versions follow the repo's current
+   standard (Next 15.5.9, React 19.1.2, TS 5.9.3), matching `nextjs-iron-ramp`.
+2. **`createWalletClientForWalletAccount` takes no `chain` argument** in 1.26.0 —
+   the plan's snippet passed `{ walletAccount, chain: base }`. It derives the
+   network from the wallet account, so `useLendingOperations` asserts
+   `walletClient.chain?.id === 8453` and throws a readable error otherwise.
+3. **Quickstart Step 5 has a small error.** It reads `sendResult?.otpVerification`,
+   but `useSendEmailOTP`'s `data` **is** the `OTPVerification` — there is no
+   wrapper property. `Login.tsx` uses `data` directly. The Critical API Reference
+   table (`verificationToken`, not `otp`) is correct and followed.
+4. **`initializeClient()` is browser-guarded.** `"use client"` modules still
+   execute during Next.js SSR, where there is no wallet environment. Extensions
+   and init run inside `typeof window !== "undefined"`; `universalLink` falls back
+   to `http://localhost:3000` on the server.
+5. **One type cast in `providers.tsx`.** `useGetWalletAccounts()` is typed
+   `BaseWalletAccount<Chain>[]` while `isEvmWalletAccount` is declared over the
+   chain-specific `WalletAccount` union, so the guard won't accept the array
+   directly. Cast is commented in place. Worth mentioning to Dynamic in review —
+   it looks like an SDK typing wart, not something an integrator should have to
+   work around.
+6. **`pnpm-workspace.yaml` added to the example.** pnpm 11 refuses to install
+   cleanly (`ERR_PNPM_IGNORED_BUILDS`) until `sharp`/`protobufjs`/`unrs-resolver`
+   are approved, and pnpm 11 moved that setting out of `package.json`. Existing
+   examples in this repo will hit the same wall on pnpm 11.
+7. **Removed from the template scaffold** as unused: `@coinbase/onchainkit`,
+   `crypto-browserify`, `stream-browserify`, `process`, both radix packages,
+   `class-variance-authority`, `tailwind.config.js` (a Tailwind v3 leftover in a
+   v4 setup), and the duplicate `next.config.js`.
+8. **Vitest added** as a devDependency of this example only, testing just the pure
+   module. Zero runtime footprint; trivially removable if Dynamic objects.
+
+## Known gaps
+
+- **Nothing was executed on-chain.** No approve, mint, redeem, or redeemUnderlying
+  has ever run from this code. The simulate-then-check-error-code path is
+  implemented and typechecks, but it is unproven against a funded wallet.
+- **No login was performed.** WaaS wallet creation via `WaasBootstrap` is wired per
+  the quickstart but never observed firing, because signing in needs your email
+  and the code sent to it.
+- The GitHub links in `README.md` and `RECIPE.mdx` point at
+  `dynamic-labs-oss/examples/tree/main/examples/nextjs-defi-lending-moonwell`,
+  which **404s until the upstream PR merges**. That's the same convention the
+  Morpho recipe uses.
+- No video. The Morpho recipe opens with a `<Frame>` Loom embed; `RECIPE.mdx` has
+  no equivalent, since fabricating a link would be worse than omitting one.
+
+## Your checklist
+
+1. `cd examples/nextjs-defi-lending-moonwell && pnpm install && pnpm dev`, then log
+   in with email OTP and confirm the embedded wallet is created (the header should
+   go from "Setting up…" to a truncated address).
+2. Fund the embedded wallet with ~5 USDC and ~$1 of ETH on Base.
+3. Supply 1 USDC — expect an approve tx, then a mint tx, then a supplied balance of
+   ≈1 USDC. Then withdraw 0.5, then withdraw max (click Max, which routes to
+   `redeem` and should leave 0 mUSDC). Confirm the Basescan links work.
+4. Read `RECIPE.mdx` top to bottom as an external developer would.
+5. Open the PR to `dynamic-labs-oss/examples` — drop this file and the
+   `MOO-717-*.md` docs first. Then follow whatever Dynamic asks for in review and
+   ping Alex for the comms follow-up.
+
+## Reverting the dashboard change
+
+The earlier CLI session added the `http://localhost:3000` CORS origin
+(id `871c27c7-75fa-46fd-a7cf-a7394ebd4977`). If you want it gone:
+`dyn origins delete 871c27c7-75fa-46fd-a7cf-a7394ebd4977`.
