@@ -6,6 +6,7 @@ import { DynamicProvider, useOnEvent, useUser, useGetWalletAccounts } from "@dyn
 import {
   createWaasWalletAccounts,
   getChainsMissingWaasWalletAccounts,
+  isWaasWalletAccount,
 } from "@dynamic-labs-sdk/client/waas";
 import type { WalletAccount } from "@dynamic-labs-sdk/client";
 import { isEvmWalletAccount, type EvmWalletAccount } from "@dynamic-labs-sdk/evm";
@@ -65,8 +66,17 @@ function WalletContextProvider({ children }: { children: ReactNode }) {
   const { data: accounts = [] } = useGetWalletAccounts();
   // `useGetWalletAccounts` is typed as the chain-agnostic base account, while
   // the type guard is declared over the chain-specific `WalletAccount` union.
+  const evmAccounts = (accounts as WalletAccount[]).filter(isEvmWalletAccount);
+
+  // Prefer the embedded wallet. `addEvmExtension()` also registers EIP-6963
+  // discovery, so an external browser wallet can appear in this list — and only
+  // the WaaS provider signs locally. Picking the first EVM account instead would
+  // hand transactions to a provider that just forwards `eth_sendTransaction` to
+  // a public RPC, which has no keys and rejects it.
   const evmAccount =
-    (accounts as WalletAccount[]).find(isEvmWalletAccount) ?? null;
+    evmAccounts.find((walletAccount) => isWaasWalletAccount({ walletAccount })) ??
+    evmAccounts[0] ??
+    null;
 
   return (
     <WalletContext.Provider

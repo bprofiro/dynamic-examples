@@ -25,3 +25,10 @@ export const USDC_DECIMALS = 6;
 export const MTOKEN_DECIMALS = 8;
 
 export const BASESCAN_URL = "https://basescan.org";
+
+/**
+ * Optional RPC override. Base's public endpoint rate-limits browser traffic and
+ * answers with 403 under load, which surfaces as a failed broadcast rather than
+ * a failed read. Point this at your own provider for anything beyond a demo.
+ */
+export const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || undefined;

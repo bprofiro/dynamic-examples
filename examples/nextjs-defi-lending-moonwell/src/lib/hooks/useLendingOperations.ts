@@ -95,6 +95,18 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
           `Wallet is still on chain ${walletClient.chain?.id ?? "unknown"} after switching to Base (${CHAIN_ID}).`,
         );
       }
+
+      // The embedded wallet signs locally, which viem models as a `local`
+      // account. A `json-rpc` account means the SDK fell back to proxying
+      // through a provider that cannot sign — the transaction would be
+      // forwarded to a public RPC, which holds no keys and answers
+      // `eth_sendTransaction` with "rpc method is unsupported". Failing here
+      // names the cause instead of surfacing that as a network error.
+      if (walletClient.account?.type !== "local") {
+        throw new Error(
+          `Selected wallet cannot sign locally (viem account type "${walletClient.account?.type ?? "unknown"}"). This example expects a Dynamic embedded wallet.`,
+        );
+      }
       return walletClient;
     },
     [evmAccount],

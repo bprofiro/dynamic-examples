@@ -199,6 +199,42 @@ would be noise in the upstream PR.
     Still unverified on-chain: I cannot sign, so the switch path has been
     typechecked and built but never actually executed against a funded wallet.
     That is the first thing to retest.
+14. **The approve transaction was going to a public RPC instead of being signed.**
+    Second failure: `wallet_sendTransaction` POSTed to `https://mainnet.base.org`,
+    answered `-32601 rpc method is unsupported` / 403. Traced through the SDK
+    source rather than guessed — `createWalletClientForWalletAccount` has two
+    branches:
+    - the wallet provider exposes `createViemWalletClient` (the WaaS provider
+      does) → viem gets a **local** account that signs in-process and broadcasts
+      `eth_sendRawTransaction`;
+    - otherwise → `toAccount(address)`, a **json-rpc** account over
+      `custom(walletProvider)`, which forwards `eth_sendTransaction` to whatever
+      the provider proxies to.
+
+    The failing payload carried only `data`/`from`/`to` — no gas, nonce or
+    chainId — which is the json-rpc shape, so the second branch ran. `addEvmExtension()`
+    registers EIP-6963 external-wallet discovery *as well as* WaaS, and
+    `providers.tsx` was picking `accounts.find(isEvmWalletAccount)` — the *first*
+    EVM account, which need not be the embedded one. It now prefers the WaaS
+    account via `isWaasWalletAccount`, falling back to any EVM account.
+
+    Two supporting changes:
+    - `getWalletClient` now rejects a non-`local` viem account with a message
+      naming the cause, instead of letting it fail three layers down as an RPC
+      error.
+    - `transformers.networksData` on the client filters the EVM list to Base.
+      Per the SDK docs the first network is the default for a fresh wallet, so
+      this fixes the chain-1 problem at the source — better than the runtime
+      switch in #13, which stays as a safety net. The same transformer prepends
+      `NEXT_PUBLIC_BASE_RPC_URL` when set; **your trace showed Base's public
+      endpoint returning 403**, so set a real provider before judging any
+      remaining broadcast failure.
+
+    **Caveat: I could not reproduce this.** Signing needs your session and funds,
+    so the diagnosis is from reading the SDK's compiled source and matching it
+    against your payload, not from observing a fix. It is well-evidenced but
+    unproven. If it still fails, the fail-fast error added above should now say
+    which branch you are on, and that answers it in one attempt.
 
 ## Known gaps
 

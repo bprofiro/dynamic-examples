@@ -96,6 +96,21 @@ if (typeof window !== "undefined") {
 }
 ```
 
+<Info>
+  **A fresh embedded wallet opens on the first EVM network in your project, not on the one your app happens to target.** If your environment also has Ethereum enabled, users get wallets on chain 1 and every write fails. The `networksData` transformer fixes this at the source — filtering the list also picks the default:
+
+  ```typescript src/lib/dynamic.ts
+  networksData: (networksData) =>
+    networksData
+      .filter(
+        (network) =>
+          network.chain !== "EVM" || Number(network.networkId) === CHAIN_ID,
+      )
+  ```
+
+  It is also where you override a network's RPC URLs, which is worth doing for anything past a demo — public endpoints rate-limit browser traffic and answer with 403, which shows up as a failed broadcast rather than a failed read.
+</Info>
+
 ### Configure providers
 
 Create `src/lib/providers.tsx`. `QueryClientProvider` must sit **outside** `DynamicProvider`. Embedded wallet creation is not automatic — `WaasBootstrap` subscribes once with `useOnEvent` and creates the missing wallets after authentication:
@@ -142,8 +157,17 @@ function WalletContextProvider({ children }: { children: ReactNode }) {
   const { data: accounts = [] } = useGetWalletAccounts();
   // `useGetWalletAccounts` is typed as the chain-agnostic base account, while
   // the type guard is declared over the chain-specific `WalletAccount` union.
+  const evmAccounts = (accounts as WalletAccount[]).filter(isEvmWalletAccount);
+
+  // Prefer the embedded wallet. `addEvmExtension()` also registers EIP-6963
+  // discovery, so an external browser wallet can appear in this list — and only
+  // the WaaS provider signs locally. Picking the first EVM account instead would
+  // hand transactions to a provider that just forwards `eth_sendTransaction` to
+  // a public RPC, which has no keys and rejects it.
   const evmAccount =
-    (accounts as WalletAccount[]).find(isEvmWalletAccount) ?? null;
+    evmAccounts.find((walletAccount) => isWaasWalletAccount({ walletAccount })) ??
+    evmAccounts[0] ??
+    null;
 
   return (
     <WalletContext.Provider
@@ -246,7 +270,7 @@ import { base } from "viem/chains";
 /** Read-only Base client. Writes go through the Dynamic wallet client. */
 export const publicClient = createPublicClient({
   chain: base,
-  transport: http(),
+  transport: http(BASE_RPC_URL),
 });
 ```
 
