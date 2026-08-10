@@ -567,19 +567,28 @@ if (receipt.status !== "success") {
 The four operations differ only in which contract call they simulate:
 
 ```typescript src/lib/hooks/useLendingOperations.ts
-/** Approves the mToken to spend `amount` USDC. No-op if already allowed. */
+/**
+ * Approves the mToken to spend `amount` USDC, and does not resolve until the
+ * new allowance is readable — the supply that follows simulates against it.
+ */
 const approve = useCallback(
   (amount: bigint) =>
-    run("approving", "approval", async (account) =>
-      publicClient.simulateContract({
-        address: USDC_ADDRESS,
-        abi: ERC20_ABI,
-        functionName: "approve",
-        args: [MUSDC_ADDRESS, amount],
-        account,
-      }),
+    run(
+      "approving",
+      "approval",
+      async (account) =>
+        publicClient.simulateContract({
+          address: USDC_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [MUSDC_ADDRESS, amount],
+          account,
+        }),
+      async () => {
+        if (address) await waitForAllowance(address, amount);
+      },
     ),
-  [run],
+  [run, address],
 );
 
 /** Supplies USDC and receives mUSDC. */
@@ -631,6 +640,40 @@ const withdrawMax = useCallback(
   [run],
 );
 ```
+
+<Info>
+  **A mined approval is not the same as a readable one.** `waitForTransactionReceipt` proves *one* node saw the approve. Simulate the `mint` immediately afterwards and a load-balanced RPC can serve you a node one block behind, which still reads the old allowance:
+
+  ```
+  The contract function "mint" reverted with the following reason:
+  ERC20: transfer amount exceeds allowance
+  ```
+
+  The approval is fine, the supply is fine, and re-clicking works — which makes this easy to misread as a bug in the approve. Wait for the allowance to actually be visible before simulating what depends on it:
+
+  ```typescript src/lib/hooks/useLendingOperations.ts
+  async function waitForAllowance(
+    owner: `0x${string}`,
+    amount: bigint,
+    attempts = 10,
+    delayMs = 500,
+  ) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const allowance = await publicClient.readContract({
+        address: USDC_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: "allowance",
+        args: [owner, MUSDC_ADDRESS],
+      });
+      if (allowance >= amount) return;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    throw new Error(
+      "Approval confirmed, but the new allowance is not visible on the RPC yet. Try the supply again.",
+    );
+  }
+  ```
+</Info>
 
 In the form, a supply first tops up the allowance when it is short, and a full withdrawal is routed to `redeem` so no dust is stranded:
 

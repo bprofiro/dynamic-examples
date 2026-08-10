@@ -46,6 +46,36 @@ function assertNoErrorCode(result: unknown, action: string) {
   }
 }
 
+/**
+ * Blocks until the allowance is observable as at least `amount`.
+ *
+ * A mined approval is not the same as a readable one. `waitForTransactionReceipt`
+ * proves one node saw the transaction; the very next `simulateContract` can be
+ * served by a node a block behind, which still reads the old allowance and
+ * reverts `mint` with "ERC20: transfer amount exceeds allowance" — an alarming
+ * error for a transaction that is actually fine.
+ */
+async function waitForAllowance(
+  owner: `0x${string}`,
+  amount: bigint,
+  attempts = 10,
+  delayMs = 500,
+) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const allowance = await publicClient.readContract({
+      address: USDC_ADDRESS,
+      abi: ERC20_ABI,
+      functionName: "allowance",
+      args: [owner, MUSDC_ADDRESS],
+    });
+    if (allowance >= amount) return;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  throw new Error(
+    "Approval confirmed, but the new allowance is not visible on the RPC yet. Try the supply again.",
+  );
+}
+
 export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
   const queryClient = useQueryClient();
   const [tx, setTx] = useState<TxState>(IDLE);
@@ -136,6 +166,8 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
         >[0];
         result: unknown;
       }>,
+      /** Runs after the receipt, while `phase` is still on screen. */
+      afterConfirm?: () => Promise<void>,
     ) => {
       if (!address) {
         setTx({ phase: "error", error: "Connect a wallet first" });
@@ -161,6 +193,8 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
           throw new Error(`${action} transaction reverted`);
         }
 
+        await afterConfirm?.();
+
         await queryClient.invalidateQueries({
           queryKey: balancesQueryKey(address),
         });
@@ -174,19 +208,28 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
     [address, getWalletClient, queryClient],
   );
 
-  /** Approves the mToken to spend `amount` USDC. No-op if already allowed. */
+  /**
+   * Approves the mToken to spend `amount` USDC, and does not resolve until the
+   * new allowance is readable — the supply that follows simulates against it.
+   */
   const approve = useCallback(
     (amount: bigint) =>
-      run("approving", "approval", async (account) =>
-        publicClient.simulateContract({
-          address: USDC_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [MUSDC_ADDRESS, amount],
-          account,
-        }),
+      run(
+        "approving",
+        "approval",
+        async (account) =>
+          publicClient.simulateContract({
+            address: USDC_ADDRESS,
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [MUSDC_ADDRESS, amount],
+            account,
+          }),
+        async () => {
+          if (address) await waitForAllowance(address, amount);
+        },
       ),
-    [run],
+    [run, address],
   );
 
   /** Supplies USDC and receives mUSDC. */

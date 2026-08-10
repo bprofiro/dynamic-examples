@@ -273,6 +273,31 @@ would be noise in the upstream PR.
     The `RECIPE.mdx` `<Info>` callout on this is the most valuable paragraph in
     the doc — it is a silent, misdirecting failure that every integrator using
     simulate-then-write will hit.
+16. **A mined approval is not a readable one.** Fourth failure: `mint` reverted
+    with "ERC20: transfer amount exceeds allowance". This one was *not* a signing
+    problem — signing worked, which is why the error finally came from the
+    contract instead of the transport.
+
+    Checked the chain rather than guessing: your wallet's allowance to the mToken
+    reads **5000000** (5 USDC), USDC balance still 5 USDC, mUSDC 0, gas fine. So
+    the approve landed and the mint never ran. Simulating `mint(5000000)` from
+    your address returns code **0** — it would have succeeded.
+
+    So `waitForTransactionReceipt` returned for the approve, and the very next
+    `simulateContract` was served by a node a block behind, which still read the
+    old allowance. Read-after-write on a load-balanced endpoint.
+
+    Fix: `run()` takes an `afterConfirm` hook that runs after the receipt while
+    the phase is still on screen, and `approve` uses it to poll `allowance` until
+    it is at least the amount (10 attempts, 500 ms apart) before resolving. So
+    the supply now simulates against an allowance it has actually observed. The
+    UI keeps saying "Approving USDC…" through the wait rather than flashing
+    success.
+
+    **Your next attempt should work either way** — the allowance is already on
+    chain, so `needsApproval` is false and it goes straight to `mint`, which I
+    verified returns 0 through the app's own ABI and RPC. The fix matters for the
+    next fresh approval.
 
 ## Known gaps
 
