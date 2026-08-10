@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 !.env.example
+
+# GT-America is licensed per-domain from Grilli Type — not redistributable.
+# Drop the web formats here locally; see src/app/globals.css.
+/public/fonts/

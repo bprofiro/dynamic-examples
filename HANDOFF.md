@@ -139,6 +139,38 @@ would be noise in the upstream PR.
       still by far the largest file in the example (the other 18 total ~80 KB).
       Worth asking Aerodrome or the Moonwell design owner for a simplified mark
       if this bothers a reviewer.
+11. **GT-America is declared but not shipped — this one needs your decision.**
+    You asked for Moonwell's real font family. `globals.css` now declares
+    `GT-America` / `GT-America-Mono` ahead of Inter / IBM Plex Mono in the font
+    stack, with `@font-face` rules pointing at `public/fonts/`. That directory
+    is **gitignored**, so the app renders in the real typeface the moment the
+    files are there and silently falls back to Inter when they are not.
+
+    I did not copy the `.woff2` files out of `moonwell-frontend-v2-react`. Token
+    logos are trademarks used to identify the asset they represent, which is
+    ordinary practice; a **webfont is different** — GT-America is licensed
+    per-domain from Grilli Type, and putting the binaries in a public GitHub
+    repo makes them downloadable by anyone, which is squarely what that licence
+    prohibits. It would expose Moonwell (the licensee) and Dynamic (the
+    publisher). The sandbox blocked the copy as well.
+
+    Three ways forward, your call:
+    - **Ship as-is** (recommended): licensed users drop the files in locally;
+      the public example renders in Inter. To see it yourself right now:
+      `mkdir -p public/fonts && cp ~/www/moonwell-frontend-v2-react/src/assets/fonts/GT-America/GT-America-{Standard-Regular,Standard-Bold,Mono-Light}.woff2 ~/www/moonwell-frontend-v2-react/src/assets/fonts/GT-America/GT-America-Mono-Regular.otf public/fonts/`
+    - **Confirm the licence covers redistribution** in an open-source example,
+      then remove `/public/fonts/` from `.gitignore` and commit them.
+    - **Drop the `@font-face` block** from `globals.css` entirely and stay on
+      Inter / IBM Plex Mono, so the published example makes no font requests
+      that cannot resolve.
+12. **Every market row is now a link.** Previously only USDC was clickable. All
+    19 rows navigate to a detail page with that market's live rates; the detail
+    page renders supply/withdraw for USDC and an explanatory read-only panel for
+    everything else, since the transaction path is USDC-scoped per the ticket.
+    Unknown mToken addresses (including the deprecated USDbC market, which is
+    filtered out of the list) still 404. Generalising supply/withdraw to every
+    market is doable but was not in scope — it needs per-market decimals read
+    on-chain, since the API does not return them.
 
 ## Known gaps
 

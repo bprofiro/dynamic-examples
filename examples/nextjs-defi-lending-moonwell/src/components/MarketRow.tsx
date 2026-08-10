@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { TokenIcon } from "@/components/ui/TokenIcon";
-import { MUSDC_ADDRESS } from "@/lib/constants";
 import {
   assetDisplayName,
   formatApy,
@@ -12,19 +11,18 @@ import {
 } from "@/lib/moonwell";
 
 /**
- * One row of the market list, laid out like the moonwell.fi markets table:
- * token monogram + symbol over its full name, network chip, then monospaced
- * figures and an outlined action.
+ * One row of the market list, laid out like the moonwell.fi markets table.
  *
- * Every non-deprecated market is listed with live rates; only the USDC market
- * is actionable in this example, so the rest have no call to action.
+ * The whole row is the link — "View Market" is a visual target inside it, not a
+ * separate control, so there is only ever one anchor per row to tab to.
  */
 export function MarketRow({ market }: { market: Market }) {
-  const isActionable =
-    market.mTokenAddress.toLowerCase() === MUSDC_ADDRESS.toLowerCase();
-
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1fr)_minmax(0,1fr)_8.5rem] items-center gap-4 py-5 border-b border-mw-grey-100">
+    <Link
+      href={`/lend/${market.mTokenAddress}`}
+      aria-label={`View the ${market.asset} market`}
+      className="group grid grid-cols-2 sm:grid-cols-[minmax(0,2fr)_7rem_minmax(0,1fr)_minmax(0,1fr)_8.5rem] items-center gap-4 py-5 -mx-3 px-3 rounded-lg border-b border-mw-grey-100 hover:bg-mw-grey-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mw-blue transition-colors"
+    >
       <div className="flex items-center gap-3 min-w-0">
         <TokenIcon symbol={market.asset} />
         <div className="min-w-0">
@@ -53,17 +51,12 @@ export function MarketRow({ market }: { market: Market }) {
       </div>
 
       <div className="col-span-2 sm:col-span-1 sm:justify-self-end">
-        {isActionable ? (
-          <Link
-            href={`/lend/${market.mTokenAddress}`}
-            className="inline-block font-mono text-sm py-1 px-3 rounded-lg border border-mw-grey-200 text-mw-black hover:border-mw-blue hover:text-mw-blue transition-colors"
-          >
-            View Market
-          </Link>
-        ) : (
-          <span className="font-mono text-sm text-mw-grey-300">—</span>
-        )}
+        {/* A span, not a link: the row is already the anchor, and a nested
+            interactive element would be announced twice. */}
+        <span className="inline-block font-mono text-sm py-1 px-3 rounded-lg border border-mw-grey-200 group-hover:border-mw-blue group-hover:text-mw-blue transition-colors">
+          View Market
+        </span>
       </div>
-    </div>
+    </Link>
   );
 }

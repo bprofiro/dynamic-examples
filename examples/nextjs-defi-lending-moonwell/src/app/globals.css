@@ -30,13 +30,66 @@
   --color-mw-base-fg: #0000ff;
 
   /*
-   * Moonwell ships GT-America / GT-America-Mono, which are licensed fonts and
-   * cannot be redistributed in a public example. Inter and IBM Plex Mono are
-   * the closest open equivalents — the mono face matters most, since Moonwell
-   * sets every number in it.
+   * Moonwell sets everything in GT-America and every number in GT-America-Mono.
+   * Those are licensed faces (Grilli Type) — see the @font-face block below.
+   * When they are not installed the stack falls through to Inter and IBM Plex
+   * Mono, the closest open equivalents.
    */
-  --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-sans: "GT-America", var(--font-inter), system-ui, sans-serif;
+  --font-mono: "GT-America-Mono", var(--font-plex-mono), ui-monospace, monospace;
+}
+
+/*
+ * GT-America is licensed per-domain from Grilli Type and is NOT included in
+ * this repository. Drop the web formats into `public/fonts/` to render the app
+ * in Moonwell's real typeface; without them these rules simply do not match and
+ * the stack above falls back to Inter / IBM Plex Mono.
+ *
+ * Required files:
+ *   GT-America-Standard-Regular.woff2 / .woff
+ *   GT-America-Standard-Bold.woff2    / .woff
+ *   GT-America-Mono-Regular.otf
+ *   GT-America-Mono-Light.woff2       / .woff
+ *
+ * If you are not licensing GT-America, delete this whole block to avoid
+ * requests for fonts that will never resolve.
+ */
+@font-face {
+  font-family: "GT-America";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src:
+    url("/fonts/GT-America-Standard-Regular.woff2") format("woff2"),
+    url("/fonts/GT-America-Standard-Regular.woff") format("woff");
+}
+
+@font-face {
+  font-family: "GT-America";
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+  src:
+    url("/fonts/GT-America-Standard-Bold.woff2") format("woff2"),
+    url("/fonts/GT-America-Standard-Bold.woff") format("woff");
+}
+
+@font-face {
+  font-family: "GT-America-Mono";
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  src: url("/fonts/GT-America-Mono-Regular.otf") format("opentype");
+}
+
+@font-face {
+  font-family: "GT-America-Mono";
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+  src:
+    url("/fonts/GT-America-Mono-Light.woff2") format("woff2"),
+    url("/fonts/GT-America-Mono-Light.woff") format("woff");
 }
 
 @layer base {

@@ -22,19 +22,23 @@ export default function MarketDetailPage() {
   const params = useParams<{ mToken: string }>();
   const mTokenAddress = params.mToken;
 
+  // Supplying is wired up for the native USDC market only — see the note below.
+  const isUsdcMarket =
+    mTokenAddress.toLowerCase() === MUSDC_ADDRESS.toLowerCase();
+
   const { evmAccount } = useWallet();
   const { data: markets, isLoading: marketsLoading } = useMarkets();
   const { data: balances, isLoading: balancesLoading } = useBalances(
-    evmAccount?.address,
+    isUsdcMarket ? evmAccount?.address : undefined,
   );
 
-  // Only the native USDC market is actionable in this example.
-  if (mTokenAddress.toLowerCase() !== MUSDC_ADDRESS.toLowerCase()) {
+  const market = markets && findMarketByMToken(markets, mTokenAddress);
+
+  // Only 404 once the list has actually loaded — an unknown address is a real
+  // miss, a pending fetch is not.
+  if (markets && !market) {
     notFound();
   }
-
-  const market = markets && findMarketByMToken(markets, mTokenAddress);
-  const symbol = market?.asset ?? "USDC";
 
   const stats = [
     { label: "Supply APY", value: market && formatApy(market.baseSupplyApy) },
@@ -59,13 +63,30 @@ export default function MarketDetailPage() {
       </Link>
 
       <div className="flex items-center gap-3">
-        <TokenIcon symbol={symbol} size={44} />
+        {market ? (
+          <TokenIcon symbol={market.asset} size={44} />
+        ) : (
+          <Skeleton className="w-11 h-11 rounded-full" />
+        )}
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight">{symbol}</h1>
-            <Badge color="base">Base</Badge>
-          </div>
-          <p className="text-sm text-mw-grey-400">{assetDisplayName(symbol)}</p>
+          {market ? (
+            <>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold tracking-tight">
+                  {market.asset}
+                </h1>
+                <Badge color="base">Base</Badge>
+              </div>
+              <p className="text-sm text-mw-grey-400">
+                {assetDisplayName(market.asset)}
+              </p>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-32" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+          )}
         </div>
       </div>
 
@@ -85,12 +106,31 @@ export default function MarketDetailPage() {
         ))}
       </div>
 
-      <BalanceDisplay
-        balances={balances}
-        isLoading={!!evmAccount && balancesLoading}
-      />
-
-      <SupplyWithdrawForm balances={balances} />
+      {isUsdcMarket ? (
+        <>
+          <BalanceDisplay
+            balances={balances}
+            isLoading={!!evmAccount && balancesLoading}
+          />
+          <SupplyWithdrawForm balances={balances} />
+        </>
+      ) : (
+        <div className="rounded-2xl border border-mw-grey-100 p-6 text-center space-y-2">
+          <p className="text-sm">
+            This example only wires up supply and withdraw for the USDC market.
+          </p>
+          <p className="text-sm text-mw-grey-400">
+            Every other market is listed read-only, with live rates straight from
+            the Moonwell API.
+          </p>
+          <Link
+            href={`/lend/${MUSDC_ADDRESS}`}
+            className="inline-block mt-2 font-mono text-sm py-1.5 px-4 rounded-lg border border-mw-blue text-mw-blue hover:bg-mw-blue-100 transition-colors"
+          >
+            Go to the USDC market
+          </Link>
+        </div>
+      )}
 
       <a
         href={`${BASESCAN_URL}/address/${mTokenAddress}`}

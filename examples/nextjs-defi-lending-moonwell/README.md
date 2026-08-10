@@ -18,7 +18,8 @@ sign-in, an automatically created WaaS wallet, and viem for the contract calls.
   returned code is `0`, because these contracts answer some failures with a
   return value instead of a revert
 
-Only the USDC market is actionable; every other market is listed read-only.
+Every market has a detail page with live rates. Supply and withdraw are wired up
+for the USDC market only — the others are read-only.
 
 ## Setup
 
@@ -104,8 +105,19 @@ public/
   `mTokenBalance * exchangeRateStored / 1e18`.
 - **Styling follows moonwell.fi** — the brand palette in `globals.css` mirrors the
   Moonwell app's Tailwind theme, and figures are monospaced the way they are
-  there. Moonwell's GT-America faces are licensed and can't ship here, so Inter
-  and IBM Plex Mono stand in.
+  there.
+- **Fonts.** Moonwell uses GT-America and GT-America-Mono, licensed per-domain
+  from [Grilli Type](https://www.grillitype.com), so they are **not** included
+  here. `globals.css` declares them and falls back to Inter and IBM Plex Mono
+  when they are absent. If you hold a license, drop the web formats into
+  `public/fonts/` (gitignored) and the app picks them up with no code change:
+
+  ```
+  public/fonts/GT-America-Standard-Regular.woff2   (+ .woff)
+  public/fonts/GT-America-Standard-Bold.woff2      (+ .woff)
+  public/fonts/GT-America-Mono-Regular.otf
+  public/fonts/GT-America-Mono-Light.woff2         (+ .woff)
+  ```
 - **Token logos** live in `public/tokens/`, named by lowercased asset symbol, the
   same convention the Moonwell app uses. A market with no matching file falls
   back to a monogram, so new listings never render a broken image.
