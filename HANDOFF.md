@@ -171,6 +171,34 @@ would be noise in the upstream PR.
     filtered out of the list) still 404. Generalising supply/withdraw to every
     market is doable but was not in scope — it needs per-market decimals read
     on-chain, since the API does not return them.
+13. **The wallet starts on Ethereum, not Base — fixed in code, and there is a
+    dashboard fix you may also want.** Your first real supply attempt failed with
+    "Wallet is on chain 1". Root cause, confirmed via `dyn export`: the sandbox
+    environment has **Ethereum Mainnet enabled alongside Base**
+    (`networks.evm[].chainName: Ethereum Mainnet, enabled: true`), and Ethereum
+    resolves first in the network list, so the embedded wallet opens on chain 1.
+
+    - **Code fix (done).** `useLendingOperations` now reads
+      `getActiveNetworkId()` and calls `switchActiveNetwork()` to Base before
+      building the wallet client — the order matters, because
+      `createWalletClientForWalletAccount` derives its chain from the wallet's
+      current network. A new `switching` tx phase drives a "Switching to Base…"
+      button label, shown only when a switch is actually needed. The old
+      wrong-chain check is kept as a post-switch backstop. This follows the
+      shape used in `moonwell-frontend-v2-react` (`useSwitchNetwork` /
+      `useNetworkSwitchGuard`: await the switch, then dispatch), minus their 90s
+      timeout and generation tokens — that machinery exists because an external
+      wallet's `wallet_switchEthereumChain` prompt can hang forever, whereas an
+      embedded WaaS wallet switches with no prompt.
+    - **Dashboard fix (your call, not done).** Disabling Ethereum Mainnet on the
+      sandbox env would make Base the only EVM network, so wallets start there
+      and no switch is ever needed. I did not change your environment config.
+      The code fix is worth keeping either way — a user can always switch
+      networks themselves.
+
+    Still unverified on-chain: I cannot sign, so the switch path has been
+    typechecked and built but never actually executed against a funded wallet.
+    That is the first thing to retest.
 
 ## Known gaps
 

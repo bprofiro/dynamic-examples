@@ -439,22 +439,50 @@ return {
 
 ## Supply and withdraw
 
-Supplying requires two transactions: approve the mToken to spend USDC, then `mint`. Withdrawing needs no approval. Use viem directly with `createWalletClientForWalletAccount` — the wallet client is configured from the wallet account's active network, so assert it is on Base before writing:
+Supplying requires two transactions: approve the mToken to spend USDC, then `mint`. Withdrawing needs no approval. Use viem directly with `createWalletClientForWalletAccount`.
+
+One thing to get right first: **an embedded wallet does not start on Base just because Base is enabled.** It opens on whatever network the environment resolves first — if Ethereum Mainnet is also enabled, that is chain 1, and every write fails. And because `createWalletClientForWalletAccount` takes its chain from the wallet's *current* network, the switch has to happen before the client is built, not after:
 
 ```typescript src/lib/hooks/useLendingOperations.ts
-const getWalletClient = useCallback(async () => {
-  if (!evmAccount) throw new Error("Connect a wallet first");
-  const walletClient = await createWalletClientForWalletAccount({
-    walletAccount: evmAccount,
-  });
-  if (walletClient.chain?.id !== CHAIN_ID) {
-    throw new Error(
-      `Wallet is on chain ${walletClient.chain?.id ?? "unknown"}; switch to Base (${CHAIN_ID}).`,
-    );
-  }
-  return walletClient;
-}, [evmAccount]);
+const getWalletClient = useCallback(
+  async (onSwitchStart?: () => void) => {
+    if (!evmAccount) throw new Error("Connect a wallet first");
+
+    const { networkId } = await getActiveNetworkId({
+      walletAccount: evmAccount,
+    });
+
+    if (Number(networkId) !== CHAIN_ID) {
+      if (!isProgrammaticNetworkSwitchAvailable({ walletAccount: evmAccount })) {
+        throw new Error(
+          `This wallet is on chain ${networkId} and cannot switch networks programmatically. Switch to Base (${CHAIN_ID}) in your wallet, then try again.`,
+        );
+      }
+      onSwitchStart?.();
+      await switchActiveNetwork({
+        networkId: String(CHAIN_ID),
+        walletAccount: evmAccount,
+      });
+    }
+
+    const walletClient = await createWalletClientForWalletAccount({
+      walletAccount: evmAccount,
+    });
+
+    // Backstop: if the switch silently failed we would otherwise sign against
+    // the wrong chain's contracts.
+    if (walletClient.chain?.id !== CHAIN_ID) {
+      throw new Error(
+        `Wallet is still on chain ${walletClient.chain?.id ?? "unknown"} after switching to Base (${CHAIN_ID}).`,
+      );
+    }
+    return walletClient;
+  },
+  [evmAccount],
+);
 ```
+
+Embedded wallets switch programmatically with no user prompt, which is why this can run inline in the transaction path. An external wallet may refuse, so `isProgrammaticNetworkSwitchAvailable` is checked rather than assumed — that branch is where you would fall back to asking the user to switch by hand.
 
 Every write follows the same cycle — simulate, check the Compound error code, broadcast, wait, invalidate:
 
@@ -473,7 +501,11 @@ function assertNoErrorCode(result: unknown, action: string) {
   }
 }
 
-const walletClient = await getWalletClient();
+const walletClient = await getWalletClient(() =>
+  setTx({ phase: "switching" }),
+);
+setTx({ phase });
+
 const { request, result } = await simulate(address);
 assertNoErrorCode(result, action);
 

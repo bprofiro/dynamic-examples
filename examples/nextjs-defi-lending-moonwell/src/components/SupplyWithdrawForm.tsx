@@ -38,7 +38,10 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
   const needsApproval =
     mode === "supply" && amount !== null && (balances?.allowance ?? 0n) < amount;
 
-  const isBusy = tx.phase === "approving" || tx.phase === "pending";
+  const isBusy =
+    tx.phase === "switching" ||
+    tx.phase === "approving" ||
+    tx.phase === "pending";
   const canSubmit = !isBusy && amount !== null && !exceedsBalance && loggedIn;
 
   const setMax = () => setValue(formatUnits(maxAmount, USDC_DECIMALS));
@@ -134,17 +137,19 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
           className="cursor-pointer w-full flex items-center justify-center gap-2 font-mono text-sm py-2.5 rounded-lg bg-mw-blue-700 hover:bg-mw-blue text-white transition-colors disabled:bg-mw-grey-100 disabled:text-mw-grey-300 disabled:cursor-not-allowed"
         >
           {isBusy && <Loader2 className="h-4 w-4 animate-spin" />}
-          {tx.phase === "approving"
-            ? "Approving USDC…"
-            : tx.phase === "pending"
-              ? mode === "supply"
-                ? "Supplying…"
-                : "Withdrawing…"
-              : needsApproval
-                ? "Approve & Supply"
-                : mode === "supply"
-                  ? "Supply"
-                  : "Withdraw"}
+          {tx.phase === "switching"
+            ? "Switching to Base…"
+            : tx.phase === "approving"
+              ? "Approving USDC…"
+              : tx.phase === "pending"
+                ? mode === "supply"
+                  ? "Supplying…"
+                  : "Withdrawing…"
+                : needsApproval
+                  ? "Approve & Supply"
+                  : mode === "supply"
+                    ? "Supply"
+                    : "Withdraw"}
         </button>
       )}
 

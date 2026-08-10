@@ -2,6 +2,11 @@
 
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  getActiveNetworkId,
+  isProgrammaticNetworkSwitchAvailable,
+  switchActiveNetwork,
+} from "@dynamic-labs-sdk/client";
 import { createWalletClientForWalletAccount } from "@dynamic-labs-sdk/evm/viem";
 import type { EvmWalletAccount } from "@dynamic-labs-sdk/evm";
 import { ERC20_ABI, MTOKEN_ABI } from "@/lib/ABIs";
@@ -10,7 +15,13 @@ import { balancesQueryKey } from "@/lib/hooks/useBalances";
 import { publicClient } from "@/lib/viem";
 import { formatErrorMessage } from "@/lib/utils";
 
-export type TxPhase = "idle" | "approving" | "pending" | "success" | "error";
+export type TxPhase =
+  | "idle"
+  | "switching"
+  | "approving"
+  | "pending"
+  | "success"
+  | "error";
 
 export interface TxState {
   phase: TxPhase;
@@ -40,18 +51,54 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
 
   const address = evmAccount?.address as `0x${string}` | undefined;
 
-  const getWalletClient = useCallback(async () => {
-    if (!evmAccount) throw new Error("Connect a wallet first");
-    const walletClient = await createWalletClientForWalletAccount({
-      walletAccount: evmAccount,
-    });
-    if (walletClient.chain?.id !== CHAIN_ID) {
-      throw new Error(
-        `Wallet is on chain ${walletClient.chain?.id ?? "unknown"}; switch to Base (${CHAIN_ID}).`,
-      );
-    }
-    return walletClient;
-  }, [evmAccount]);
+  /**
+   * Puts the wallet on Base before anything is signed.
+   *
+   * An embedded wallet does not start on Base just because Base is enabled — it
+   * opens on whatever network the environment considers default. And
+   * `createWalletClientForWalletAccount` derives its chain from the wallet's
+   * *current* network, so the switch has to happen before the client is built,
+   * not after.
+   *
+   * Embedded wallets switch programmatically with no user prompt. An external
+   * wallet may refuse, so the capability is checked rather than assumed.
+   */
+  const getWalletClient = useCallback(
+    async (onSwitchStart?: () => void) => {
+      if (!evmAccount) throw new Error("Connect a wallet first");
+
+      const { networkId } = await getActiveNetworkId({
+        walletAccount: evmAccount,
+      });
+
+      if (Number(networkId) !== CHAIN_ID) {
+        if (!isProgrammaticNetworkSwitchAvailable({ walletAccount: evmAccount })) {
+          throw new Error(
+            `This wallet is on chain ${networkId} and cannot switch networks programmatically. Switch to Base (${CHAIN_ID}) in your wallet, then try again.`,
+          );
+        }
+        onSwitchStart?.();
+        await switchActiveNetwork({
+          networkId: String(CHAIN_ID),
+          walletAccount: evmAccount,
+        });
+      }
+
+      const walletClient = await createWalletClientForWalletAccount({
+        walletAccount: evmAccount,
+      });
+
+      // Backstop: if the switch silently failed we would otherwise sign against
+      // the wrong chain's contracts.
+      if (walletClient.chain?.id !== CHAIN_ID) {
+        throw new Error(
+          `Wallet is still on chain ${walletClient.chain?.id ?? "unknown"} after switching to Base (${CHAIN_ID}).`,
+        );
+      }
+      return walletClient;
+    },
+    [evmAccount],
+  );
 
   const reset = useCallback(() => setTx(IDLE), []);
 
@@ -62,7 +109,7 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
    */
   const run = useCallback(
     async (
-      phase: Exclude<TxPhase, "idle" | "success" | "error">,
+      phase: Exclude<TxPhase, "idle" | "switching" | "success" | "error">,
       action: string,
       simulate: (owner: `0x${string}`) => Promise<{
         request: Parameters<
@@ -77,7 +124,13 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
       }
       setTx({ phase });
       try {
-        const walletClient = await getWalletClient();
+        // Only surfaces the switching phase when a switch is actually needed, so
+        // the common same-chain path does not flash it.
+        const walletClient = await getWalletClient(() =>
+          setTx({ phase: "switching" }),
+        );
+        setTx({ phase });
+
         const { request, result } = await simulate(address);
         assertNoErrorCode(result, action);
 
