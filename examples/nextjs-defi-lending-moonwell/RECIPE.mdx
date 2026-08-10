@@ -508,6 +508,30 @@ const getWalletClient = useCallback(
 
 Embedded wallets switch programmatically with no user prompt, which is why this can run inline in the transaction path. An external wallet may refuse, so `isProgrammaticNetworkSwitchAvailable` is checked rather than assumed — that branch is where you would fall back to asking the user to switch by hand.
 
+<Info>
+  **Simulate with the wallet's account object, not its address.** This is the single easiest way to break an embedded-wallet integration, and it fails in a way that points nowhere near the cause.
+
+  `writeContract` prefers the account carried on the simulated request over the one on the client:
+
+  ```typescript
+  const { abi, account: account_ = client.account, ... } = parameters  // viem
+  ```
+
+  An address string parses into a **`json-rpc`** account, so viem asks the transport to sign via `eth_sendTransaction`. The embedded wallet signs *locally* — its client carries a **`local`** account and broadcasts `eth_sendRawTransaction`. Pass the address and you silently opt out of that, and the request goes to your RPC endpoint, which holds no keys:
+
+  ```
+  The method "eth_sendTransaction" does not exist / is not available.
+  ```
+
+  ```typescript
+  // ✅ signs locally with the embedded wallet
+  publicClient.simulateContract({ ...args, account: walletClient.account })
+
+  // ❌ becomes a json-rpc account; eth_sendTransaction goes to the RPC
+  publicClient.simulateContract({ ...args, account: walletClient.account.address })
+  ```
+</Info>
+
 Every write follows the same cycle — simulate, check the Compound error code, broadcast, wait, invalidate:
 
 ```typescript src/lib/hooks/useLendingOperations.ts
@@ -530,7 +554,7 @@ const walletClient = await getWalletClient(() =>
 );
 setTx({ phase });
 
-const { request, result } = await simulate(address);
+const { request, result } = await simulate(walletClient.account);
 assertNoErrorCode(result, action);
 
 const hash = await walletClient.writeContract(request);
@@ -546,13 +570,13 @@ The four operations differ only in which contract call they simulate:
 /** Approves the mToken to spend `amount` USDC. No-op if already allowed. */
 const approve = useCallback(
   (amount: bigint) =>
-    run("approving", "approval", async (owner) =>
+    run("approving", "approval", async (account) =>
       publicClient.simulateContract({
         address: USDC_ADDRESS,
         abi: ERC20_ABI,
         functionName: "approve",
         args: [MUSDC_ADDRESS, amount],
-        account: owner,
+        account,
       }),
     ),
   [run],
@@ -561,13 +585,13 @@ const approve = useCallback(
 /** Supplies USDC and receives mUSDC. */
 const supply = useCallback(
   (amount: bigint) =>
-    run("pending", "supply", async (owner) =>
+    run("pending", "supply", async (account) =>
       publicClient.simulateContract({
         address: MUSDC_ADDRESS,
         abi: MTOKEN_ABI,
         functionName: "mint",
         args: [amount],
-        account: owner,
+        account,
       }),
     ),
   [run],
@@ -576,13 +600,13 @@ const supply = useCallback(
 /** Withdraws an exact USDC amount. */
 const withdraw = useCallback(
   (amount: bigint) =>
-    run("pending", "withdrawal", async (owner) =>
+    run("pending", "withdrawal", async (account) =>
       publicClient.simulateContract({
         address: MUSDC_ADDRESS,
         abi: MTOKEN_ABI,
         functionName: "redeemUnderlying",
         args: [amount],
-        account: owner,
+        account,
       }),
     ),
   [run],
@@ -595,13 +619,13 @@ const withdraw = useCallback(
  */
 const withdrawMax = useCallback(
   (mTokenBalance: bigint) =>
-    run("pending", "withdrawal", async (owner) =>
+    run("pending", "withdrawal", async (account) =>
       publicClient.simulateContract({
         address: MUSDC_ADDRESS,
         abi: MTOKEN_ABI,
         functionName: "redeem",
         args: [mTokenBalance],
-        account: owner,
+        account,
       }),
     ),
   [run],

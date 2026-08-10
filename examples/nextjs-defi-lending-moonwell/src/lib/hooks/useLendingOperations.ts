@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { Account } from "viem";
 import {
   getActiveNetworkId,
   isProgrammaticNetworkSwitchAvailable,
@@ -118,12 +119,18 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
    * Runs one simulate → write → wait cycle and keeps `tx` in step with it.
    * `phase` is the caller's label for the in-flight state so the UI can tell
    * an approval apart from the supply that follows it.
+   *
+   * The simulate callback is handed the wallet's *account object*, not its
+   * address. `writeContract` prefers the account carried on the simulated
+   * request over the one on the client, and an address string parses into a
+   * `json-rpc` account — which would send `eth_sendTransaction` to the RPC
+   * instead of signing locally with the embedded wallet.
    */
   const run = useCallback(
     async (
       phase: Exclude<TxPhase, "idle" | "switching" | "success" | "error">,
       action: string,
-      simulate: (owner: `0x${string}`) => Promise<{
+      simulate: (account: Account) => Promise<{
         request: Parameters<
           Awaited<ReturnType<typeof getWalletClient>>["writeContract"]
         >[0];
@@ -143,7 +150,7 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
         );
         setTx({ phase });
 
-        const { request, result } = await simulate(address);
+        const { request, result } = await simulate(walletClient.account);
         assertNoErrorCode(result, action);
 
         const hash = await walletClient.writeContract(request);
@@ -170,13 +177,13 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
   /** Approves the mToken to spend `amount` USDC. No-op if already allowed. */
   const approve = useCallback(
     (amount: bigint) =>
-      run("approving", "approval", async (owner) =>
+      run("approving", "approval", async (account) =>
         publicClient.simulateContract({
           address: USDC_ADDRESS,
           abi: ERC20_ABI,
           functionName: "approve",
           args: [MUSDC_ADDRESS, amount],
-          account: owner,
+          account,
         }),
       ),
     [run],
@@ -185,13 +192,13 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
   /** Supplies USDC and receives mUSDC. */
   const supply = useCallback(
     (amount: bigint) =>
-      run("pending", "supply", async (owner) =>
+      run("pending", "supply", async (account) =>
         publicClient.simulateContract({
           address: MUSDC_ADDRESS,
           abi: MTOKEN_ABI,
           functionName: "mint",
           args: [amount],
-          account: owner,
+          account,
         }),
       ),
     [run],
@@ -200,13 +207,13 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
   /** Withdraws an exact USDC amount. */
   const withdraw = useCallback(
     (amount: bigint) =>
-      run("pending", "withdrawal", async (owner) =>
+      run("pending", "withdrawal", async (account) =>
         publicClient.simulateContract({
           address: MUSDC_ADDRESS,
           abi: MTOKEN_ABI,
           functionName: "redeemUnderlying",
           args: [amount],
-          account: owner,
+          account,
         }),
       ),
     [run],
@@ -219,13 +226,13 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
    */
   const withdrawMax = useCallback(
     (mTokenBalance: bigint) =>
-      run("pending", "withdrawal", async (owner) =>
+      run("pending", "withdrawal", async (account) =>
         publicClient.simulateContract({
           address: MUSDC_ADDRESS,
           abi: MTOKEN_ABI,
           functionName: "redeem",
           args: [mTokenBalance],
-          account: owner,
+          account,
         }),
       ),
     [run],

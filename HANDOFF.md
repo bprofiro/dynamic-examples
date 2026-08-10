@@ -234,11 +234,45 @@ would be noise in the upstream PR.
       with a `fetch` from the page origin. Base's public endpoint was returning
       403 in your trace.
 
-    **Caveat: I could not reproduce this.** Signing needs your session and funds,
-    so the diagnosis is from reading the SDK's compiled source and matching it
-    against your payload, not from observing a fix. It is well-evidenced but
-    unproven. If it still fails, the fail-fast error added above should now say
-    which branch you are on, and that answers it in one attempt.
+    **That diagnosis was incomplete.** The WaaS-account preference above is a
+    correct hardening, but it was not the cause — see #15.
+15. **The actual cause: simulating with an address instead of an account object.**
+    Third failure, `The method "eth_sendTransaction" does not exist`. My
+    fail-fast check from #14 passed, which was the clue: the wallet *client*
+    carried a `local` account, yet `eth_sendTransaction` was still being used.
+    Those two facts can only coexist for one reason — viem's `writeContract`
+    prefers the account on the *request* over the one on the client:
+
+    ```js
+    const { abi, account: account_ = client.account, ... } = parameters
+    ```
+
+    `useLendingOperations` was simulating with `account: owner`, an address
+    *string*. viem parses that into a **`json-rpc`** account, and
+    `writeContract(request)` then honoured it instead of the embedded wallet's
+    local signer — so viem asked the transport to sign via
+    `eth_sendTransaction`, which went to the RPC endpoint, which holds no keys.
+    Changing the RPC could never have fixed this; it only changed which
+    endpoint refused.
+
+    Fix: `run()` now hands the simulate callback `walletClient.account` (the
+    account object) rather than the address, so the request carries the local
+    account and viem signs in-process and broadcasts `eth_sendRawTransaction`.
+
+    **Verified at the mechanism level**, since I still cannot sign: simulating
+    the real `approve` call both ways against Base and inspecting the result —
+    address string → `request.account.type === "json-rpc"`, account object →
+    `"local"`. That is the whole bug in one line of output.
+
+    Worth telling Dynamic: `nextjs-defi-lending-morpho` (the template this was
+    scaffolded from) uses `account: address as \`0x${string}\`` in all four of
+    its operation hooks. On SDK 1.2.1 that may have been fine, but on a
+    locally-signing embedded wallet it is the same defect. I have not tested
+    their example, so treat it as a lead rather than a finding.
+
+    The `RECIPE.mdx` `<Info>` callout on this is the most valuable paragraph in
+    the doc — it is a silent, misdirecting failure that every integrator using
+    simulate-then-write will hit.
 
 ## Known gaps
 
