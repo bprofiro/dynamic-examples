@@ -31,7 +31,8 @@ export function useBalances(address?: string) {
   return useQuery({
     queryKey: balancesQueryKey(address),
     enabled: !!address,
-    refetchInterval: 15_000,
+    staleTime: 5_000,
+    refetchInterval: 5_000,
     queryFn: async (): Promise<Balances> => {
       const owner = address as `0x${string}`;
       const [walletUsdc, mTokenBalance, exchangeRate, allowance] =

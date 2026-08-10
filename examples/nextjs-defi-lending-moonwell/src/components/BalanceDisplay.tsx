@@ -1,7 +1,7 @@
 "use client";
 
 import { formatUnits } from "viem";
-import { MTOKEN_DECIMALS, USDC_DECIMALS } from "@/lib/constants";
+import { USDC_DECIMALS } from "@/lib/constants";
 import type { Balances } from "@/lib/hooks";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -45,18 +45,11 @@ export function BalanceDisplay({
               {balances ? usdc(balances.suppliedUsdc) : "—"}
               <span className="text-mw-grey-400 text-base ml-1.5">USDC</span>
             </p>
-            <p className="text-xs text-mw-grey-400">
-              {balances ? (
-                <>
-                  <span className="tabular">
-                    {formatUnits(balances.mTokenBalance, MTOKEN_DECIMALS)}
-                  </span>{" "}
-                  mUSDC
-                </>
-              ) : (
-                "Sign in to see your position"
-              )}
-            </p>
+            {!balances && (
+              <p className="text-xs text-mw-grey-400">
+                Sign in to see your position
+              </p>
+            )}
           </>
         )}
       </div>

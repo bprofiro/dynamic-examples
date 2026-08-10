@@ -298,6 +298,30 @@ would be noise in the upstream PR.
     chain, so `needsApproval` is false and it goes straight to `mint`, which I
     verified returns 0 through the app's own ABI and RPC. The fix matters for the
     next fresh approval.
+17. **Supply confirmed working on-chain**, and post-transaction balances took
+    minutes to update. Three causes, all mine:
+    - `refetchOnWindowFocus: false` on the query client. Polling pauses while the
+      tab is in the background, so switching away during a transaction and back
+      meant nothing refetched until the next interval. Removed — window-focus
+      refetching is now on.
+    - 15s `refetchInterval` and a 30s `staleTime`. The Moonwell app polls user
+      positions every 5s (`useUserPositions`: `staleTime = refetchInterval =
+      1000 * 5`); balances now match that.
+    - The refetch fired the instant the receipt arrived, so it often read the
+      *pre-transaction* balances from a node that had not applied the block, and
+      React Query cached those. `run()` now waits for
+      `getBlockNumber({ cacheTime: 0 }) >= receipt.blockNumber` before
+      invalidating. Same root cause as #16, one layer up.
+
+    Also removed the "N mUSDC" sub-line from the Supplied card, per your request —
+    only the USDC figure now. `MTOKEN_DECIMALS` is consequently unused in code but
+    kept in `constants.ts`, since the recipe explains the 8-vs-6 decimal
+    difference that makes the exchange-rate math work.
+
+    **Not verified by me:** the refresh timing needs a signed transaction to
+    observe, so this is reasoned from the query config and the block-lag
+    behaviour already proven in #16 — not measured. Worth a deliberate check on
+    your next supply or withdraw.
 
 ## Known gaps
 

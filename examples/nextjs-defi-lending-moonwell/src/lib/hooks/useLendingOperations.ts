@@ -76,6 +76,28 @@ async function waitForAllowance(
   );
 }
 
+/**
+ * Blocks until the RPC is serving at least `blockNumber`.
+ *
+ * Invalidating the balance queries the instant a receipt arrives usually reads
+ * back the *old* balances: the receipt came from one node, and the refetch can
+ * be served by another that has not applied that block. React Query then caches
+ * those stale values, so the UI sits on pre-transaction numbers until a later
+ * poll happens to hit a caught-up node.
+ */
+async function waitForBlock(
+  blockNumber: bigint,
+  attempts = 10,
+  delayMs = 400,
+) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    // cacheTime 0, or viem answers from its own short-lived block cache.
+    const current = await publicClient.getBlockNumber({ cacheTime: 0 });
+    if (current >= blockNumber) return;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+}
+
 export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
   const queryClient = useQueryClient();
   const [tx, setTx] = useState<TxState>(IDLE);
@@ -195,6 +217,9 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
 
         await afterConfirm?.();
 
+        // Only refetch once the RPC can actually see this block, otherwise the
+        // refreshed balances are the pre-transaction ones.
+        await waitForBlock(receipt.blockNumber);
         await queryClient.invalidateQueries({
           queryKey: balancesQueryKey(address),
         });

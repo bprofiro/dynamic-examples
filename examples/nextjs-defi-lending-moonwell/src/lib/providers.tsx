@@ -33,8 +33,11 @@ export function useWallet() {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 30,
-      refetchOnWindowFocus: false,
+      // Matches the Moonwell app's 5s cadence for on-chain reads. Window-focus
+      // refetching is deliberately left on: polling pauses while the tab is in
+      // the background, so without it a user who switches away during a
+      // transaction comes back to stale balances.
+      staleTime: 1000 * 5,
     },
   },
 });
