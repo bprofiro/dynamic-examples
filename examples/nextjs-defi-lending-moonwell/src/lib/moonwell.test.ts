@@ -5,6 +5,7 @@ import {
   findMarketByMToken,
   formatApy,
   formatUsd,
+  formatUsdcAmount,
   parseMarketsResponse,
   underlyingFromMTokens,
 } from "@/lib/moonwell";
@@ -178,6 +179,37 @@ describe("underlyingFromMTokens", () => {
     expect(underlyingFromMTokens(1n, RATE)).toBe(0n);
     expect(underlyingFromMTokens(4_329n, RATE)).toBe(0n);
     expect(underlyingFromMTokens(4_330n, RATE)).toBe(1n);
+  });
+});
+
+describe("formatUsdcAmount", () => {
+  it("shows cents", () => {
+    expect(formatUsdcAmount(5_000_049n)).toBe("5.00");
+    expect(formatUsdcAmount(1_004_999n)).toBe("1.00");
+    expect(formatUsdcAmount(1_005_000n)).toBe("1.01");
+    expect(formatUsdcAmount(12_345_678_900n)).toBe("12345.68");
+  });
+
+  it("renders an exact zero as 0.00", () => {
+    expect(formatUsdcAmount(0n)).toBe("0.00");
+  });
+
+  it("rounds half-up exactly, where toFixed would not", () => {
+    // (1.005).toFixed(2) === "1.00": the nearest double to 1.005 is below it.
+    expect(formatUsdcAmount(1_005_000n)).toBe("1.01");
+    expect(formatUsdcAmount(2_675n, 3)).toBe("2.68");
+  });
+
+  it("never renders a nonzero balance as 0.00", () => {
+    // Dust left by a max withdrawal, or a tiny first deposit.
+    expect(formatUsdcAmount(1n)).toBe("<0.01");
+    expect(formatUsdcAmount(4_999n)).toBe("<0.01");
+    expect(formatUsdcAmount(5_000n)).toBe("0.01");
+    expect(formatUsdcAmount(10_000n)).toBe("0.01");
+  });
+
+  it("honours a non-USDC scale", () => {
+    expect(formatUsdcAmount(4_324_880_914n, 8)).toBe("43.25");
   });
 });
 

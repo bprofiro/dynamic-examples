@@ -105,6 +105,26 @@ export function underlyingFromMTokens(
   return (mTokenBalance * exchangeRateStored) / 10n ** 18n;
 }
 
+/**
+ * Formats a token amount for display, to cents.
+ *
+ * Rounds half-up in bigint arithmetic rather than going through `Number` —
+ * `(1.005).toFixed(2)` is `"1.00"`, because 1.005 has no exact binary
+ * representation. Balances are money, so they round by the stated rule and not
+ * by whichever float happens to be nearest.
+ *
+ * A nonzero balance never reads as "0.00": the Max button offers full
+ * precision, so a card showing 0.00 while Max offers something is a
+ * contradiction the user cannot resolve.
+ */
+export function formatUsdcAmount(value: bigint, decimals = 6): string {
+  if (value === 0n) return "0.00";
+  const scale = 10n ** BigInt(decimals);
+  const cents = (value * 100n + scale / 2n) / scale;
+  if (cents === 0n) return "<0.01";
+  return `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}`;
+}
+
 /** API APY values are already percentages. */
 export function formatApy(apy: number): string {
   if (!Number.isFinite(apy)) return "—";

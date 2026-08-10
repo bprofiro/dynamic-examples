@@ -62,7 +62,7 @@ async function waitForAllowance(
   amount: bigint,
   attempts = 20,
   delayMs = 750,
-) {
+): Promise<boolean> {
   for (let attempt = 0; attempt < attempts; attempt++) {
     const allowance = await publicClient.readContract({
       address: USDC_ADDRESS,
@@ -70,12 +70,13 @@ async function waitForAllowance(
       functionName: "allowance",
       args: [owner, MUSDC_ADDRESS],
     });
-    if (allowance >= amount) return;
+    if (allowance >= amount) return true;
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
-  // Deliberately not an error: the approval is on-chain either way, and the
-  // supply is a separate click, so a slow-to-propagate read is not a failure.
-  // Reporting it as one turned a successful transaction into a red banner.
+  // Not an error: the approval is on-chain either way. Returning false lets the
+  // caller fall back to a second click rather than sending a supply that would
+  // simulate against an allowance this RPC cannot see yet.
+  return false;
 }
 
 /**
@@ -236,12 +237,17 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
   );
 
   /**
-   * Approves the mToken to spend `amount` USDC, and does not resolve until the
-   * new allowance is readable — the supply that follows simulates against it.
+   * Approves the mToken to spend `amount` USDC.
+   *
+   * `allowanceVisible` reports whether the new allowance became readable before
+   * resolving. The caller needs both flags: a supply chained onto an approval
+   * whose allowance has not propagated reverts with "transfer amount exceeds
+   * allowance", so it has to wait for a second click instead.
    */
   const approve = useCallback(
-    (amount: bigint) =>
-      run(
+    async (amount: bigint) => {
+      let allowanceVisible = false;
+      const ok = await run(
         "approving",
         "approval",
         async (account) =>
@@ -253,9 +259,11 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
             account,
           }),
         async () => {
-          if (address) await waitForAllowance(address, amount);
+          if (address) allowanceVisible = await waitForAllowance(address, amount);
         },
-      ),
+      );
+      return { ok, allowanceVisible };
+    },
     [run, address],
   );
 

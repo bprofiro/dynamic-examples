@@ -1,13 +1,8 @@
 "use client";
 
-import { formatUnits } from "viem";
-import { USDC_DECIMALS } from "@/lib/constants";
 import type { Balances } from "@/lib/hooks";
+import { formatUsdcAmount } from "@/lib/moonwell";
 import { Skeleton } from "@/components/ui/Skeleton";
-
-function usdc(value: bigint) {
-  return Number(formatUnits(value, USDC_DECIMALS)).toFixed(6);
-}
 
 /**
  * Wallet balance next to the supplied balance. The supplied figure is derived
@@ -29,7 +24,7 @@ export function BalanceDisplay({
           <Skeleton className="h-7 w-32" />
         ) : (
           <p className="tabular text-2xl">
-            {balances ? usdc(balances.walletUsdc) : "—"}
+            {balances ? formatUsdcAmount(balances.walletUsdc) : "—"}
             <span className="text-mw-grey-400 text-base ml-1.5">USDC</span>
           </p>
         )}
@@ -42,7 +37,7 @@ export function BalanceDisplay({
         ) : (
           <>
             <p className="tabular text-2xl">
-              {balances ? usdc(balances.suppliedUsdc) : "—"}
+              {balances ? formatUsdcAmount(balances.suppliedUsdc) : "—"}
               <span className="text-mw-grey-400 text-base ml-1.5">USDC</span>
             </p>
             {!balances && (

@@ -568,12 +568,17 @@ The four operations differ only in which contract call they simulate:
 
 ```typescript src/lib/hooks/useLendingOperations.ts
 /**
- * Approves the mToken to spend `amount` USDC, and does not resolve until the
- * new allowance is readable — the supply that follows simulates against it.
+ * Approves the mToken to spend `amount` USDC.
+ *
+ * `allowanceVisible` reports whether the new allowance became readable before
+ * resolving. The caller needs both flags: a supply chained onto an approval
+ * whose allowance has not propagated reverts with "transfer amount exceeds
+ * allowance", so it has to wait for a second click instead.
  */
 const approve = useCallback(
-  (amount: bigint) =>
-    run(
+  async (amount: bigint) => {
+    let allowanceVisible = false;
+    const ok = await run(
       "approving",
       "approval",
       async (account) =>
@@ -585,9 +590,11 @@ const approve = useCallback(
           account,
         }),
       async () => {
-        if (address) await waitForAllowance(address, amount);
+        if (address) allowanceVisible = await waitForAllowance(address, amount);
       },
-    ),
+    );
+    return { ok, allowanceVisible };
+  },
   [run, address],
 );
 
@@ -651,7 +658,7 @@ const withdrawMax = useCallback(
 
   The approval is fine, the supply is fine, and re-clicking works — which makes this easy to misread as a bug in the approve.
 
-  **The structural fix is to not chain the two transactions.** Approve and supply are separate clicks, so the user's second click is the wait, and an allowance that has not propagated simply leaves the button on "Approve USDC" instead of failing a transaction. That is how the Moonwell app does it. Belt and braces, also wait for the allowance to be readable before reporting the approval done:
+  **Chain the supply onto the approval only when the allowance is actually readable.** Wait for it after the receipt; if it appears, continue straight into the supply, and if it does not, stop and let the user press Supply — a second click costs them a tap, whereas a supply sent against an invisible allowance costs them a failed transaction and its gas.
 
   ```typescript src/lib/hooks/useLendingOperations.ts
   async function waitForAllowance(
@@ -659,7 +666,7 @@ const withdrawMax = useCallback(
     amount: bigint,
     attempts = 20,
     delayMs = 750,
-  ) {
+  ): Promise<boolean> {
     for (let attempt = 0; attempt < attempts; attempt++) {
       const allowance = await publicClient.readContract({
         address: USDC_ADDRESS,
@@ -667,11 +674,13 @@ const withdrawMax = useCallback(
         functionName: "allowance",
         args: [owner, MUSDC_ADDRESS],
       });
-      if (allowance >= amount) return;
+      if (allowance >= amount) return true;
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-    // Deliberately not an error: the approval is on-chain either way, and the
-    // supply is a separate click, so a slow-to-propagate read is not a failure.
+    // Not an error: the approval is on-chain either way. Returning false lets the
+    // caller fall back to a second click rather than sending a supply that would
+    // simulate against an allowance this RPC cannot see yet.
+    return false;
   }
   ```
 </Info>
@@ -683,8 +692,14 @@ const handleSubmit = async () => {
   if (!amount) return;
   if (mode === "supply") {
     if (needsApproval) {
-      await approve(amount);
-      return;
+      const { ok, allowanceVisible } = await approve(amount);
+      // Failed outright — the error is already on screen.
+      if (!ok) return;
+      // Approved, but this RPC cannot see the new allowance yet. Supplying now
+      // would simulate against the old one and revert with "transfer amount
+      // exceeds allowance", so stop and let the success banner invite a second
+      // click. The button already reads "Supply" by then.
+      if (!allowanceVisible) return;
     }
     await supply(amount);
     setValue("");

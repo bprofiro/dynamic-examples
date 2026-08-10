@@ -344,7 +344,29 @@ would be noise in the upstream PR.
     - `waitForAllowance` widened to 15s and **no longer throws** on timeout: the
       approval is on-chain regardless, and reporting it as an error turned a
       successful transaction into a red banner
-19. **Amount input was showing `4,000045` for 4.000045 USDC.** Visible in your
+19. **Supply chains onto the approval again — your call, made safe.** You wanted
+    the supply to happen automatically, overriding #18 and the plan's two-step
+    UI. Rather than simply reverting (which restores the race in #16), the chain
+    is now conditional: `approve()` returns `{ ok, allowanceVisible }`, and the
+    form continues into the supply only when the allowance actually became
+    readable within the 15s window. If it did not, it stops with "Approval
+    confirmed — press Supply to continue" and the button already reads "Supply".
+
+    So the normal path is one click, and the degraded path costs a tap instead of
+    a reverted transaction and its gas. Button reads "Approve & Supply" again.
+20. **Balance cards show 2 decimals**, as asked. Two things beyond the literal
+    request, both worth knowing:
+    - The formatter moved into `moonwell.ts` and is unit tested, rather than
+      sitting untested in a component. That is where the other formatters live,
+      and I could not verify it in the browser without a funded session.
+    - **It rounds half-up in bigint, not via `toFixed`.** My first version used
+      `Number(...).toFixed(2)` and a test caught that it renders 1.005 as
+      "1.00" — the nearest double to 1.005 is below it. Balances are money, so
+      they now round by the stated rule instead of by whichever float lands
+      nearest. A nonzero balance also never prints "0.00"; below half a cent it
+      prints "<0.01", because Max offers full precision and a card claiming 0.00
+      while Max offers something is a contradiction.
+21. **Amount input was showing `4,000045` for 4.000045 USDC.** Visible in your
     screenshot. `type="number"` renders its value through the browser locale, so
     a comma-decimal locale displays a dot-decimal value with a comma —
     indistinguishable from four million in an amount field. Now a `type="text"`

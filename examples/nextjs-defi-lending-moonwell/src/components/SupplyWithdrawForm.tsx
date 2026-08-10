@@ -49,14 +49,15 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
   const handleSubmit = async () => {
     if (!amount) return;
     if (mode === "supply") {
-      // Approve and supply are deliberately separate clicks, matching the
-      // Moonwell app. Chaining them races the RPC: the mint would simulate
-      // against an allowance the node serving it has not caught up to, and
-      // revert with "transfer amount exceeds allowance" despite a successful
-      // approval. The second click is the wait.
       if (needsApproval) {
-        await approve(amount);
-        return;
+        const { ok, allowanceVisible } = await approve(amount);
+        // Failed outright — the error is already on screen.
+        if (!ok) return;
+        // Approved, but this RPC cannot see the new allowance yet. Supplying now
+        // would simulate against the old one and revert with "transfer amount
+        // exceeds allowance", so stop and let the success banner invite a second
+        // click. The button already reads "Supply" by then.
+        if (!allowanceVisible) return;
       }
       await supply(amount);
       setValue("");
@@ -163,7 +164,7 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
                   ? "Supplying…"
                   : "Withdrawing…"
                 : needsApproval
-                  ? "Approve USDC"
+                  ? "Approve & Supply"
                   : mode === "supply"
                     ? "Supply"
                     : "Withdraw"}
@@ -178,8 +179,10 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
 
       {tx.phase === "success" && (
         <p className="p-2.5 rounded-lg text-xs bg-mw-green-100 text-mw-green-800">
+          {/* Only reached for an approval whose allowance was still invisible —
+              a chained supply replaces this state before it can render. */}
           {tx.action === "approval"
-            ? "Approval confirmed — you can supply now."
+            ? "Approval confirmed — press Supply to continue."
             : "Transaction confirmed."}{" "}
           {tx.hash && (
             <a
