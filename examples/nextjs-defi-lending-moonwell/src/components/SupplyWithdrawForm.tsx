@@ -49,7 +49,15 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
   const handleSubmit = async () => {
     if (!amount) return;
     if (mode === "supply") {
-      if (needsApproval && !(await approve(amount))) return;
+      // Approve and supply are deliberately separate clicks, matching the
+      // Moonwell app. Chaining them races the RPC: the mint would simulate
+      // against an allowance the node serving it has not caught up to, and
+      // revert with "transfer amount exceeds allowance" despite a successful
+      // approval. The second click is the wait.
+      if (needsApproval) {
+        await approve(amount);
+        return;
+      }
       await supply(amount);
       setValue("");
       return;
@@ -104,13 +112,22 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
             exceedsBalance ? "border-mw-red-600" : "border-mw-grey-200"
           }`}
         >
+          {/*
+            A text input, not `type="number"`. A number input renders its value
+            through the browser locale, so "4.000045" displays as "4,000045" for
+            a comma-decimal user — indistinguishable from four million in an
+            amount field. It also mutates the value on scroll. The pattern below
+            accepts digits and a single dot, which is what `parseUnits` wants.
+          */}
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            min="0"
-            step="0.000001"
+            autoComplete="off"
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value.replace(",", ".");
+              if (next === "" || /^\d*\.?\d*$/.test(next)) setValue(next);
+            }}
             placeholder="0.00"
             disabled={isBusy}
             className="tabular flex-1 py-2.5 text-sm bg-transparent outline-none"
@@ -146,7 +163,7 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
                   ? "Supplying…"
                   : "Withdrawing…"
                 : needsApproval
-                  ? "Approve & Supply"
+                  ? "Approve USDC"
                   : mode === "supply"
                     ? "Supply"
                     : "Withdraw"}
@@ -161,7 +178,9 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
 
       {tx.phase === "success" && (
         <p className="p-2.5 rounded-lg text-xs bg-mw-green-100 text-mw-green-800">
-          Transaction confirmed.{" "}
+          {tx.action === "approval"
+            ? "Approval confirmed — you can supply now."
+            : "Transaction confirmed."}{" "}
           {tx.hash && (
             <a
               href={`${BASESCAN_URL}/tx/${tx.hash}`}

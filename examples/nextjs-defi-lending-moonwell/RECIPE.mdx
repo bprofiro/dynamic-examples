@@ -649,14 +649,16 @@ const withdrawMax = useCallback(
   ERC20: transfer amount exceeds allowance
   ```
 
-  The approval is fine, the supply is fine, and re-clicking works — which makes this easy to misread as a bug in the approve. Wait for the allowance to actually be visible before simulating what depends on it:
+  The approval is fine, the supply is fine, and re-clicking works — which makes this easy to misread as a bug in the approve.
+
+  **The structural fix is to not chain the two transactions.** Approve and supply are separate clicks, so the user's second click is the wait, and an allowance that has not propagated simply leaves the button on "Approve USDC" instead of failing a transaction. That is how the Moonwell app does it. Belt and braces, also wait for the allowance to be readable before reporting the approval done:
 
   ```typescript src/lib/hooks/useLendingOperations.ts
   async function waitForAllowance(
     owner: `0x${string}`,
     amount: bigint,
-    attempts = 10,
-    delayMs = 500,
+    attempts = 20,
+    delayMs = 750,
   ) {
     for (let attempt = 0; attempt < attempts; attempt++) {
       const allowance = await publicClient.readContract({
@@ -668,9 +670,8 @@ const withdrawMax = useCallback(
       if (allowance >= amount) return;
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
-    throw new Error(
-      "Approval confirmed, but the new allowance is not visible on the RPC yet. Try the supply again.",
-    );
+    // Deliberately not an error: the approval is on-chain either way, and the
+    // supply is a separate click, so a slow-to-propagate read is not a failure.
   }
   ```
 </Info>
@@ -681,7 +682,10 @@ In the form, a supply first tops up the allowance when it is short, and a full w
 const handleSubmit = async () => {
   if (!amount) return;
   if (mode === "supply") {
-    if (needsApproval && !(await approve(amount))) return;
+    if (needsApproval) {
+      await approve(amount);
+      return;
+    }
     await supply(amount);
     setValue("");
     return;

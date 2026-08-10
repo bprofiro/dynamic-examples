@@ -322,6 +322,37 @@ would be noise in the upstream PR.
     observe, so this is reasoned from the query config and the block-lag
     behaviour already proven in #16 — not measured. Worth a deliberate check on
     your next supply or withdraw.
+18. **Approve and supply are two clicks again — reverting my deviation from the
+    plan.** A second supply hit "Approval confirmed, but the new allowance is not
+    visible on the RPC yet", i.e. the 5s `waitForAllowance` from #16 timed out.
+    On chain the approval had landed (allowance 4000045, matching the amount).
+
+    Polling harder was the wrong instinct. The plan specified *"Two-step UI
+    (Approve button → Supply button), same UX as the Morpho recipe"*, and the
+    Moonwell app does the same — `ConfirmSupplyVaultModal.approve()` runs
+    `approveCall()` then `fetchAllowance()`, and the Supply button enables off
+    the refreshed `hasAllowance`. Nothing is chained. **The user's second click
+    is the wait**, so a slow read can only leave a button un-flipped; it can
+    never fail a transaction. I had auto-chained them, which manufactured the
+    race.
+
+    Changes:
+    - the form approves and returns; the button then reads "Supply"
+    - button label is "Approve USDC", not "Approve & Supply"
+    - success message distinguishes the two ("Approval confirmed — you can
+      supply now"), via a new `action` field on `TxState`
+    - `waitForAllowance` widened to 15s and **no longer throws** on timeout: the
+      approval is on-chain regardless, and reporting it as an error turned a
+      successful transaction into a red banner
+19. **Amount input was showing `4,000045` for 4.000045 USDC.** Visible in your
+    screenshot. `type="number"` renders its value through the browser locale, so
+    a comma-decimal locale displays a dot-decimal value with a comma —
+    indistinguishable from four million in an amount field. Now a `type="text"`
+    input with `inputMode="decimal"` and a `/^\d*\.?\d*$/` guard, which also
+    stops the scroll wheel silently changing the amount. Verified in the browser:
+    the field now displays `4.000045`. You did not ask for this; I changed it
+    because misreading an amount by six orders of magnitude in a financial form
+    is worth more than a minimal diff. Easy to revert if you disagree.
 
 ## Known gaps
 

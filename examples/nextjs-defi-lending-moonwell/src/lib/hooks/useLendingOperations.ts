@@ -28,6 +28,8 @@ export interface TxState {
   phase: TxPhase;
   hash?: `0x${string}`;
   error?: string;
+  /** Which operation the state refers to, e.g. "approval" or "supply". */
+  action?: string;
 }
 
 const IDLE: TxState = { phase: "idle" };
@@ -58,8 +60,8 @@ function assertNoErrorCode(result: unknown, action: string) {
 async function waitForAllowance(
   owner: `0x${string}`,
   amount: bigint,
-  attempts = 10,
-  delayMs = 500,
+  attempts = 20,
+  delayMs = 750,
 ) {
   for (let attempt = 0; attempt < attempts; attempt++) {
     const allowance = await publicClient.readContract({
@@ -71,9 +73,9 @@ async function waitForAllowance(
     if (allowance >= amount) return;
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
-  throw new Error(
-    "Approval confirmed, but the new allowance is not visible on the RPC yet. Try the supply again.",
-  );
+  // Deliberately not an error: the approval is on-chain either way, and the
+  // supply is a separate click, so a slow-to-propagate read is not a failure.
+  // Reporting it as one turned a successful transaction into a red banner.
 }
 
 /**
@@ -208,7 +210,7 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
         assertNoErrorCode(result, action);
 
         const hash = await walletClient.writeContract(request);
-        setTx({ phase, hash });
+        setTx({ phase, hash, action });
 
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
         if (receipt.status !== "success") {
@@ -223,10 +225,10 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
         await queryClient.invalidateQueries({
           queryKey: balancesQueryKey(address),
         });
-        setTx({ phase: "success", hash });
+        setTx({ phase: "success", hash, action });
         return true;
       } catch (error) {
-        setTx({ phase: "error", error: formatErrorMessage(error) });
+        setTx({ phase: "error", error: formatErrorMessage(error), action });
         return false;
       }
     },
