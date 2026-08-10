@@ -14,7 +14,7 @@ import { ERC20_ABI, MTOKEN_ABI } from "@/lib/ABIs";
 import { CHAIN_ID, MUSDC_ADDRESS, USDC_ADDRESS } from "@/lib/constants";
 import { balancesQueryKey } from "@/lib/hooks/useBalances";
 import { publicClient } from "@/lib/viem";
-import { formatErrorMessage } from "@/lib/utils";
+import { formatErrorMessage, isStaleAllowanceError } from "@/lib/utils";
 
 export type TxPhase =
   | "idle"
@@ -48,36 +48,6 @@ function assertNoErrorCode(result: unknown, action: string) {
   }
 }
 
-/**
- * Blocks until the allowance is observable as at least `amount`.
- *
- * A mined approval is not the same as a readable one. `waitForTransactionReceipt`
- * proves one node saw the transaction; the very next `simulateContract` can be
- * served by a node a block behind, which still reads the old allowance and
- * reverts `mint` with "ERC20: transfer amount exceeds allowance" — an alarming
- * error for a transaction that is actually fine.
- */
-async function waitForAllowance(
-  owner: `0x${string}`,
-  amount: bigint,
-  attempts = 20,
-  delayMs = 750,
-): Promise<boolean> {
-  for (let attempt = 0; attempt < attempts; attempt++) {
-    const allowance = await publicClient.readContract({
-      address: USDC_ADDRESS,
-      abi: ERC20_ABI,
-      functionName: "allowance",
-      args: [owner, MUSDC_ADDRESS],
-    });
-    if (allowance >= amount) return true;
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
-  }
-  // Not an error: the approval is on-chain either way. Returning false lets the
-  // caller fall back to a second click rather than sending a supply that would
-  // simulate against an allowance this RPC cannot see yet.
-  return false;
-}
 
 /**
  * Blocks until the RPC is serving at least `blockNumber`.
@@ -191,8 +161,12 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
         >[0];
         result: unknown;
       }>,
-      /** Runs after the receipt, while `phase` is still on screen. */
-      afterConfirm?: () => Promise<void>,
+      /**
+       * How many times to retry the simulate step while it fails on a stale
+       * allowance. Simulation is a read, so retrying it is free and safe — the
+       * write still happens exactly once, after a simulate that succeeded.
+       */
+      simulateAttempts = 1,
     ) => {
       if (!address) {
         setTx({ phase: "error", error: "Connect a wallet first" });
@@ -207,7 +181,20 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
         );
         setTx({ phase });
 
-        const { request, result } = await simulate(walletClient.account);
+        let simulated: Awaited<ReturnType<typeof simulate>> | undefined;
+        for (let attempt = 1; ; attempt++) {
+          try {
+            simulated = await simulate(walletClient.account);
+            break;
+          } catch (error) {
+            if (attempt >= simulateAttempts || !isStaleAllowanceError(error)) {
+              throw error;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1_000));
+          }
+        }
+
+        const { request, result } = simulated;
         assertNoErrorCode(result, action);
 
         const hash = await walletClient.writeContract(request);
@@ -217,8 +204,6 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
         if (receipt.status !== "success") {
           throw new Error(`${action} transaction reverted`);
         }
-
-        await afterConfirm?.();
 
         // Only refetch once the RPC can actually see this block, otherwise the
         // refreshed balances are the pre-transaction ones.
@@ -236,48 +221,43 @@ export function useLendingOperations(evmAccount: EvmWalletAccount | null) {
     [address, getWalletClient, queryClient],
   );
 
-  /**
-   * Approves the mToken to spend `amount` USDC.
-   *
-   * `allowanceVisible` reports whether the new allowance became readable before
-   * resolving. The caller needs both flags: a supply chained onto an approval
-   * whose allowance has not propagated reverts with "transfer amount exceeds
-   * allowance", so it has to wait for a second click instead.
-   */
+  /** Approves the mToken to spend `amount` USDC. */
   const approve = useCallback(
-    async (amount: bigint) => {
-      let allowanceVisible = false;
-      const ok = await run(
-        "approving",
-        "approval",
-        async (account) =>
-          publicClient.simulateContract({
-            address: USDC_ADDRESS,
-            abi: ERC20_ABI,
-            functionName: "approve",
-            args: [MUSDC_ADDRESS, amount],
-            account,
-          }),
-        async () => {
-          if (address) allowanceVisible = await waitForAllowance(address, amount);
-        },
-      );
-      return { ok, allowanceVisible };
-    },
-    [run, address],
-  );
-
-  /** Supplies USDC and receives mUSDC. */
-  const supply = useCallback(
     (amount: bigint) =>
-      run("pending", "supply", async (account) =>
+      run("approving", "approval", async (account) =>
         publicClient.simulateContract({
-          address: MUSDC_ADDRESS,
-          abi: MTOKEN_ABI,
-          functionName: "mint",
-          args: [amount],
+          address: USDC_ADDRESS,
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [MUSDC_ADDRESS, amount],
           account,
         }),
+      ),
+    [run],
+  );
+
+  /**
+   * Supplies USDC and receives mUSDC.
+   *
+   * `simulateAttempts` above 1 is for a supply chained straight onto an
+   * approval: the allowance is on-chain but the read path may not serve it for
+   * a few seconds, and retrying the simulate absorbs that without asking the
+   * user to press anything twice.
+   */
+  const supply = useCallback(
+    (amount: bigint, simulateAttempts = 1) =>
+      run(
+        "pending",
+        "supply",
+        async (account) =>
+          publicClient.simulateContract({
+            address: MUSDC_ADDRESS,
+            abi: MTOKEN_ABI,
+            functionName: "mint",
+            args: [amount],
+            account,
+          }),
+        simulateAttempts,
       ),
     [run],
   );

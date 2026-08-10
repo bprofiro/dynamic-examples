@@ -366,7 +366,36 @@ would be noise in the upstream PR.
       nearest. A nonzero balance also never prints "0.00"; below half a cent it
       prints "<0.01", because Max offers full precision and a card claiming 0.00
       while Max offers something is a contradiction.
-21. **Amount input was showing `4,000045` for 4.000045 USDC.** Visible in your
+21. **Always one click — and my RPC-lag theory was wrong.** 2 and 3 USDC chained
+    fine; 5.000049 approved and then asked for a second press, i.e. the 15s
+    allowance poll timed out. On chain the allowance was exactly 5000049 and
+    readable.
+
+    So I measured the RPC instead of theorising further: 16 polls of
+    `eth_call`(Multicall3 `getBlockNumber`) against `eth_blockNumber` showed
+    **zero lag and no caching** — the values advanced in lockstep. The
+    read-after-write story I had been building on since #16 does not hold for
+    this endpoint, and I never verified it before designing two fixes around it.
+    I still cannot say precisely why that one poll failed.
+
+    So the fix no longer depends on knowing. Instead of predicting how long
+    propagation takes, **retry the simulation** — it is a read, so retrying is
+    free, and it tests the exact condition that matters rather than a proxy:
+
+    - `run()` takes `simulateAttempts`; the simulate step retries up to that many
+      times, 1s apart, and **only** when the error mentions an allowance. The
+      write still happens once, after a simulate that succeeded.
+    - the form always chains: `approve()` then `supply(amount, approving ? 20 : 1)`.
+      Retries are passed only after an approval; without one an allowance error is
+      genuine and surfaces immediately rather than after 20s of silence.
+    - `waitForAllowance` and the `afterConfirm` hook are gone.
+
+    `isStaleAllowanceError` lives in `utils.ts` and is unit tested — it decides
+    whether a real error gets buried behind a retry loop, and I cannot exercise
+    that path on-chain. Tests cover the exact revert string, casing, and the
+    failures that must *not* retry (insufficient balance, paused market, user
+    rejection, gas).
+22. **Amount input was showing `4,000045` for 4.000045 USDC.** Visible in your
     screenshot. `type="number"` renders its value through the browser locale, so
     a comma-decimal locale displays a dot-decimal value with a comma —
     indistinguishable from four million in an amount field. Now a `type="text"`

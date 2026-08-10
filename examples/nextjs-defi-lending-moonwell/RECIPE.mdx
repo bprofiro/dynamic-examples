@@ -554,7 +554,20 @@ const walletClient = await getWalletClient(() =>
 );
 setTx({ phase });
 
-const { request, result } = await simulate(walletClient.account);
+let simulated: Awaited<ReturnType<typeof simulate>> | undefined;
+for (let attempt = 1; ; attempt++) {
+  try {
+    simulated = await simulate(walletClient.account);
+    break;
+  } catch (error) {
+    if (attempt >= simulateAttempts || !isStaleAllowanceError(error)) {
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+}
+
+const { request, result } = simulated;
 assertNoErrorCode(result, action);
 
 const hash = await walletClient.writeContract(request);
@@ -567,48 +580,43 @@ if (receipt.status !== "success") {
 The four operations differ only in which contract call they simulate:
 
 ```typescript src/lib/hooks/useLendingOperations.ts
-/**
- * Approves the mToken to spend `amount` USDC.
- *
- * `allowanceVisible` reports whether the new allowance became readable before
- * resolving. The caller needs both flags: a supply chained onto an approval
- * whose allowance has not propagated reverts with "transfer amount exceeds
- * allowance", so it has to wait for a second click instead.
- */
+/** Approves the mToken to spend `amount` USDC. */
 const approve = useCallback(
-  async (amount: bigint) => {
-    let allowanceVisible = false;
-    const ok = await run(
-      "approving",
-      "approval",
-      async (account) =>
-        publicClient.simulateContract({
-          address: USDC_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [MUSDC_ADDRESS, amount],
-          account,
-        }),
-      async () => {
-        if (address) allowanceVisible = await waitForAllowance(address, amount);
-      },
-    );
-    return { ok, allowanceVisible };
-  },
-  [run, address],
-);
-
-/** Supplies USDC and receives mUSDC. */
-const supply = useCallback(
   (amount: bigint) =>
-    run("pending", "supply", async (account) =>
+    run("approving", "approval", async (account) =>
       publicClient.simulateContract({
-        address: MUSDC_ADDRESS,
-        abi: MTOKEN_ABI,
-        functionName: "mint",
-        args: [amount],
+        address: USDC_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: "approve",
+        args: [MUSDC_ADDRESS, amount],
         account,
       }),
+    ),
+  [run],
+);
+
+/**
+ * Supplies USDC and receives mUSDC.
+ *
+ * `simulateAttempts` above 1 is for a supply chained straight onto an
+ * approval: the allowance is on-chain but the read path may not serve it for
+ * a few seconds, and retrying the simulate absorbs that without asking the
+ * user to press anything twice.
+ */
+const supply = useCallback(
+  (amount: bigint, simulateAttempts = 1) =>
+    run(
+      "pending",
+      "supply",
+      async (account) =>
+        publicClient.simulateContract({
+          address: MUSDC_ADDRESS,
+          abi: MTOKEN_ABI,
+          functionName: "mint",
+          args: [amount],
+          account,
+        }),
+      simulateAttempts,
     ),
   [run],
 );
@@ -656,33 +664,35 @@ const withdrawMax = useCallback(
   ERC20: transfer amount exceeds allowance
   ```
 
-  The approval is fine, the supply is fine, and re-clicking works — which makes this easy to misread as a bug in the approve.
+  The approval is fine, the supply is fine, and re-clicking works — which is what makes this easy to misread as a bug in the approve.
 
-  **Chain the supply onto the approval only when the allowance is actually readable.** Wait for it after the receipt; if it appears, continue straight into the supply, and if it does not, stop and let the user press Supply — a second click costs them a tap, whereas a supply sent against an invisible allowance costs them a failed transaction and its gas.
+  **Retry the simulation, not the transaction.** Polling the allowance before supplying looks like the obvious fix and is not reliable: it decides in advance how long propagation will take, and when it guesses low the user is asked to press a button twice for no reason. Simulating is a read, so retrying it is free — and it tests the exact condition that matters instead of a proxy for it. The write still happens once, after a simulate that succeeded:
 
   ```typescript src/lib/hooks/useLendingOperations.ts
-  async function waitForAllowance(
-    owner: `0x${string}`,
-    amount: bigint,
-    attempts = 20,
-    delayMs = 750,
-  ): Promise<boolean> {
-    for (let attempt = 0; attempt < attempts; attempt++) {
-      const allowance = await publicClient.readContract({
-        address: USDC_ADDRESS,
-        abi: ERC20_ABI,
-        functionName: "allowance",
-        args: [owner, MUSDC_ADDRESS],
-      });
-      if (allowance >= amount) return true;
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+  let simulated: Awaited<ReturnType<typeof simulate>> | undefined;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      simulated = await simulate(walletClient.account);
+      break;
+    } catch (error) {
+      if (attempt >= simulateAttempts || !isStaleAllowanceError(error)) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1_000));
     }
-    // Not an error: the approval is on-chain either way. Returning false lets the
-    // caller fall back to a second click rather than sending a supply that would
-    // simulate against an allowance this RPC cannot see yet.
-    return false;
   }
   ```
+
+  Retry only the failure that patience fixes. A balance that is genuinely too low or a paused market must surface at once, not after twenty seconds of silence:
+
+  ```typescript src/lib/utils.ts
+  export function isStaleAllowanceError(error: unknown): boolean {
+    return formatErrorMessage(error).toLowerCase().includes("allowance");
+  }
+  ```
+
+  Pass the retries only where a stale allowance is plausible — straight after an approval. Everywhere else, an allowance error is real.
+
 </Info>
 
 In the form, a supply first tops up the allowance when it is short, and a full withdrawal is routed to `redeem` so no dust is stranded:
@@ -691,17 +701,15 @@ In the form, a supply first tops up the allowance when it is short, and a full w
 const handleSubmit = async () => {
   if (!amount) return;
   if (mode === "supply") {
-    if (needsApproval) {
-      const { ok, allowanceVisible } = await approve(amount);
-      // Failed outright — the error is already on screen.
-      if (!ok) return;
-      // Approved, but this RPC cannot see the new allowance yet. Supplying now
-      // would simulate against the old one and revert with "transfer amount
-      // exceeds allowance", so stop and let the success banner invite a second
-      // click. The button already reads "Supply" by then.
-      if (!allowanceVisible) return;
-    }
-    await supply(amount);
+    const approving = needsApproval;
+    // Approval and supply are one click. The error is already on screen if the
+    // approval itself failed.
+    if (approving && !(await approve(amount))) return;
+    // A supply straight after an approval may simulate before the new
+    // allowance is readable. Retrying the simulate absorbs that rather than
+    // making the user press Supply a second time; without a preceding
+    // approval an allowance error is real, so it surfaces at once.
+    await supply(amount, approving ? 20 : 1);
     setValue("");
     return;
   }

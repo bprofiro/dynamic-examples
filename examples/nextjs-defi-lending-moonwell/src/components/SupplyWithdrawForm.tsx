@@ -49,17 +49,15 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
   const handleSubmit = async () => {
     if (!amount) return;
     if (mode === "supply") {
-      if (needsApproval) {
-        const { ok, allowanceVisible } = await approve(amount);
-        // Failed outright — the error is already on screen.
-        if (!ok) return;
-        // Approved, but this RPC cannot see the new allowance yet. Supplying now
-        // would simulate against the old one and revert with "transfer amount
-        // exceeds allowance", so stop and let the success banner invite a second
-        // click. The button already reads "Supply" by then.
-        if (!allowanceVisible) return;
-      }
-      await supply(amount);
+      const approving = needsApproval;
+      // Approval and supply are one click. The error is already on screen if the
+      // approval itself failed.
+      if (approving && !(await approve(amount))) return;
+      // A supply straight after an approval may simulate before the new
+      // allowance is readable. Retrying the simulate absorbs that rather than
+      // making the user press Supply a second time; without a preceding
+      // approval an allowance error is real, so it surfaces at once.
+      await supply(amount, approving ? 20 : 1);
       setValue("");
       return;
     }
@@ -179,11 +177,11 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
 
       {tx.phase === "success" && (
         <p className="p-2.5 rounded-lg text-xs bg-mw-green-100 text-mw-green-800">
-          {/* Only reached for an approval whose allowance was still invisible —
-              a chained supply replaces this state before it can render. */}
-          {tx.action === "approval"
-            ? "Approval confirmed — press Supply to continue."
-            : "Transaction confirmed."}{" "}
+          {tx.action === "supply"
+            ? "Supply confirmed."
+            : tx.action === "withdrawal"
+              ? "Withdrawal confirmed."
+              : "Transaction confirmed."}{" "}
           {tx.hash && (
             <a
               href={`${BASESCAN_URL}/tx/${tx.hash}`}
