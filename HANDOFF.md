@@ -115,12 +115,30 @@ would be noise in the upstream PR.
    it. The palette in `globals.css` mirrors the Moonwell app's Tailwind theme
    (`#2474DA` Moonwell Blue, the grey ramp, the Base chip colours), the market
    list matches the moonwell.fi table layout, and figures are monospaced as they
-   are there. Two substitutions were unavoidable: **GT-America / GT-America-Mono
-   are licensed** (Grilli Type) and cannot be redistributed in a public repo, so
-   Inter and IBM Plex Mono stand in; and **token logos are drawn as monograms**
-   rather than vendoring or hotlinking third-party brand marks. If Dynamic pushes
-   back on the divergence, the styling is confined to `globals.css`,
-   `layout.tsx`, and the component class names — the SDK wiring is untouched.
+   are there. **GT-America / GT-America-Mono are licensed** (Grilli Type) and
+   cannot be redistributed in a public repo, so Inter and IBM Plex Mono stand in.
+   If Dynamic pushes back on the divergence, the styling is confined to
+   `globals.css`, `layout.tsx`, and the component class names — the SDK wiring is
+   untouched.
+10. **Token logos copied from `moonwell-frontend-v2-react`.** I originally drew
+    monograms and flagged the licensing question; you asked for the real icons,
+    so the 19 SVGs for the active Base markets are now in `public/tokens/`, named
+    by lowercased symbol (the same convention the Moonwell app uses). A market
+    with no matching file falls back to a monogram, so a new listing can never
+    render a broken image — verified: 19/19 load, 0 broken.
+
+    Two things to be aware of before the upstream PR:
+    - **These are third-party brand marks** (Circle's USDC, Coinbase's cbBTC,
+      Lido's wstETH, and so on) that Moonwell vendored into its own repo. Using
+      them to identify the asset they represent is ordinary practice in DeFi
+      UIs, but publishing them in Dynamic's repo is a redistribution decision
+      that is yours, not mine, and Dynamic may have their own policy.
+    - **`aero.svg` was 470 KB** — pathological for a 36 px icon. I ran it
+      through `svgo` at its default precision, halving it to 220 KB, and
+      confirmed the result is pixel-identical to the original at 400 px. It is
+      still by far the largest file in the example (the other 18 total ~80 KB).
+      Worth asking Aerodrome or the Moonwell design owner for a simplified mark
+      if this bothers a reviewer.
 
 ## Known gaps
 

@@ -79,6 +79,8 @@ src/
     BalanceDisplay.tsx
     SupplyWithdrawForm.tsx
     ui/                   # Badge, TokenIcon, Skeleton
+public/
+  tokens/                 # token logos, keyed by lowercased symbol
   lib/
     dynamic.ts            # client + addEvmExtension() + initializeClient()
     providers.tsx         # QueryClientProvider > DynamicProvider > WaasBootstrap
@@ -103,8 +105,10 @@ src/
 - **Styling follows moonwell.fi** — the brand palette in `globals.css` mirrors the
   Moonwell app's Tailwind theme, and figures are monospaced the way they are
   there. Moonwell's GT-America faces are licensed and can't ship here, so Inter
-  and IBM Plex Mono stand in. Token logos are drawn as monograms rather than
-  vendoring third-party brand marks.
+  and IBM Plex Mono stand in.
+- **Token logos** live in `public/tokens/`, named by lowercased asset symbol, the
+  same convention the Moonwell app uses. A market with no matching file falls
+  back to a monogram, so new listings never render a broken image.
 
 ## Resources
 

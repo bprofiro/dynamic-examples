@@ -59,7 +59,7 @@ export default function MarketDetailPage() {
       </Link>
 
       <div className="flex items-center gap-3">
-        <TokenIcon symbol={symbol} className="w-11 h-11 text-xs" />
+        <TokenIcon symbol={symbol} size={44} />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold tracking-tight">{symbol}</h1>
