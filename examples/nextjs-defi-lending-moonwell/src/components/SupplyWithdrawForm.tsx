@@ -103,7 +103,7 @@ export function SupplyWithdrawForm({ balances }: { balances?: Balances }) {
             disabled={isBusy}
             className="cursor-pointer font-mono text-xs text-mw-blue hover:underline disabled:opacity-40"
           >
-            Max {Number(formatUnits(maxAmount, USDC_DECIMALS)).toFixed(6)}
+            Max
           </button>
         </div>
         <div
