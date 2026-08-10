@@ -24,8 +24,10 @@ export const dynamicClient = createDynamicClient({
      * an environment that also has Ethereum enabled hands out wallets sitting
      * on chain 1 and every write fails until the user switches.
      *
-     * Prepends the RPC override when one is configured, so both reads and the
-     * broadcast go through it rather than Base's rate-limited public endpoint.
+     * Also puts `BASE_RPC_URL` in front of the project's own RPC list, so the
+     * WaaS client broadcasts through it — Dynamic builds that transport from
+     * `networkData.rpcUrls`, so overriding it here is what makes the send use
+     * a working endpoint rather than Base's rate-limited public one.
      */
     networksData: (networksData) =>
       networksData
@@ -34,7 +36,7 @@ export const dynamicClient = createDynamicClient({
             network.chain !== "EVM" || Number(network.networkId) === CHAIN_ID,
         )
         .map((network) =>
-          BASE_RPC_URL && Number(network.networkId) === CHAIN_ID
+          Number(network.networkId) === CHAIN_ID
             ? {
                 ...network,
                 rpcUrls: {

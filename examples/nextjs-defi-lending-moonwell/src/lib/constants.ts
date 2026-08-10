@@ -27,8 +27,12 @@ export const MTOKEN_DECIMALS = 8;
 export const BASESCAN_URL = "https://basescan.org";
 
 /**
- * Optional RPC override. Base's public endpoint rate-limits browser traffic and
- * answers with 403 under load, which surfaces as a failed broadcast rather than
- * a failed read. Point this at your own provider for anything beyond a demo.
+ * Base RPC used for both reads and broadcasting.
+ *
+ * Defaults to Moonwell's public endpoint. Base's own public endpoint
+ * (`mainnet.base.org`) rate-limits browser traffic and answers with 403, which
+ * shows up as a failed broadcast rather than a failed read. Override with
+ * `NEXT_PUBLIC_BASE_RPC_URL` to point at your own provider.
  */
-export const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || undefined;
+export const BASE_RPC_URL =
+  process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://rpc.moonwell.fi/main/evm/8453";

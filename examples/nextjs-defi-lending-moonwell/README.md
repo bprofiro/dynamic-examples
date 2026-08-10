@@ -46,6 +46,11 @@ cp .env.example .env.local
 NEXT_PUBLIC_DYNAMIC_ENV_ID=your-environment-id
 ```
 
+Reads and broadcasts go through `https://rpc.moonwell.fi/main/evm/8453` by
+default. Set `NEXT_PUBLIC_BASE_RPC_URL` to use your own provider. Base's public
+endpoint (`mainnet.base.org`) is a poor choice here — it rate-limits browser
+traffic and answers with 403, which shows up as a failed broadcast.
+
 ### 3. Run
 
 ```bash

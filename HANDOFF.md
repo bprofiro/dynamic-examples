@@ -226,9 +226,13 @@ would be noise in the upstream PR.
       Per the SDK docs the first network is the default for a fresh wallet, so
       this fixes the chain-1 problem at the source — better than the runtime
       switch in #13, which stays as a safety net. The same transformer prepends
-      `NEXT_PUBLIC_BASE_RPC_URL` when set; **your trace showed Base's public
-      endpoint returning 403**, so set a real provider before judging any
-      remaining broadcast failure.
+      `BASE_RPC_URL`, which now defaults to Moonwell's own endpoint,
+      `https://rpc.moonwell.fi/main/evm/8453` (overridable with
+      `NEXT_PUBLIC_BASE_RPC_URL`). Verified before wiring it in: `eth_chainId`
+      returns `0x2105`, and `eth_estimateGas` **succeeds for the exact approve
+      call that was failing** — plus CORS is open from `localhost:3000`, checked
+      with a `fetch` from the page origin. Base's public endpoint was returning
+      403 in your trace.
 
     **Caveat: I could not reproduce this.** Signing needs your session and funds,
     so the diagnosis is from reading the SDK's compiled source and matching it
